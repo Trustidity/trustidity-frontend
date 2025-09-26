@@ -1,17 +1,29 @@
-"use client"
+"use client";
 
-import type React from "react"
-import { useState } from "react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Textarea } from "@/components/ui/textarea"
-import { ArrowLeft, Search, Shield, Clock, CheckCircle } from "lucide-react"
-import Link from "next/link"
-import { useRouter } from "next/navigation"
-import { PaymentStep } from "./payment-step"
+import type React from "react";
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { ArrowLeft, Search, Shield, Clock, CheckCircle } from "lucide-react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { PaymentStep } from "./payment-step";
 
 // Nigerian credential types with their requirements
 const CREDENTIAL_TYPES = {
@@ -36,7 +48,12 @@ const CREDENTIAL_TYPES = {
   university: {
     name: "University Degree/Certificate",
     needsInstitution: true,
-    fields: ["certificateNumber", "candidateName", "graduationYear", "institution"],
+    fields: [
+      "certificateNumber",
+      "candidateName",
+      "graduationYear",
+      "institution",
+    ],
     example: "e.g., UNN/2023/BSC/001234",
   },
   nmcn: {
@@ -57,29 +74,31 @@ const CREDENTIAL_TYPES = {
     fields: ["certificateNumber", "candidateName", "issueYear", "institution"],
     example: "e.g., ICAN/2023/001234",
   },
-}
+};
 
 export function VerifyDocument() {
-  const [step, setStep] = useState<"select" | "form" | "payment" | "result">("select")
-  const [selectedType, setSelectedType] = useState<string>("")
-  const [formData, setFormData] = useState<Record<string, string>>({})
-  const [isLoading, setIsLoading] = useState(false)
-  const [verificationResult, setVerificationResult] = useState<any>(null)
-  const router = useRouter()
+  const [step, setStep] = useState<"select" | "form" | "payment" | "result">(
+    "select"
+  );
+  const [selectedType, setSelectedType] = useState<string>("");
+  const [formData, setFormData] = useState<Record<string, string>>({});
+  const [isLoading, setIsLoading] = useState(false);
+  const [verificationResult, setVerificationResult] = useState<any>(null);
+  const router = useRouter();
 
   const handleTypeSelect = (type: string) => {
-    setSelectedType(type)
-    setFormData({})
-    setStep("form")
-  }
+    setSelectedType(type);
+    setFormData({});
+    setStep("form");
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setStep("payment")
-  }
+    e.preventDefault();
+    setStep("payment");
+  };
 
   const handlePaymentSuccess = async (reference: string) => {
-    setIsLoading(true)
+    setIsLoading(true);
 
     // Simulate verification process after successful payment
     setTimeout(() => {
@@ -88,41 +107,59 @@ export function VerifyDocument() {
         paymentReference: reference,
         details: {
           candidateName: formData.candidateName,
-          credentialType: CREDENTIAL_TYPES[selectedType as keyof typeof CREDENTIAL_TYPES].name,
-          issueDate: formData.examYear || formData.graduationYear || formData.registrationYear || formData.serviceYear,
-          institution: formData.institution || CREDENTIAL_TYPES[selectedType as keyof typeof CREDENTIAL_TYPES].name,
+          credentialType:
+            CREDENTIAL_TYPES[selectedType as keyof typeof CREDENTIAL_TYPES]
+              .name,
+          issueDate:
+            formData.examYear ||
+            formData.graduationYear ||
+            formData.registrationYear ||
+            formData.serviceYear,
+          institution:
+            formData.institution ||
+            CREDENTIAL_TYPES[selectedType as keyof typeof CREDENTIAL_TYPES]
+              .name,
           verificationDate: new Date().toLocaleDateString(),
         },
-      }
+      };
 
-      setVerificationResult(mockResult)
-      setIsLoading(false)
-      setStep("result")
-    }, 3000)
-  }
+      setVerificationResult(mockResult);
+      setIsLoading(false);
+      setStep("result");
+    }, 3000);
+  };
 
   const handleLoginToSaveResult = () => {
     // Store verification result in sessionStorage to persist through login
-    sessionStorage.setItem("pendingVerification", JSON.stringify(verificationResult))
-    router.push("/login?redirect=verify-result")
-  }
+    sessionStorage.setItem(
+      "pendingVerification",
+      JSON.stringify(verificationResult)
+    );
+    router.push("/login?redirect=verify-result");
+  };
 
   if (step === "select") {
     return (
-      <div className="container py-8">
+      <div className="container py-8 px-4 sm:px-6 lg:px-8">
         <div className="max-w-4xl mx-auto">
           <div className="mb-8">
-            <Link href="/" className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground">
+            <Link
+              href="/"
+              className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground"
+            >
               <ArrowLeft className="mr-2 h-4 w-4" />
               Back to Home
             </Link>
           </div>
 
           <div className="text-center mb-12">
-            <h1 className="text-3xl font-bold text-foreground mb-4">Verify Your Credential</h1>
+            <h1 className="text-3xl font-bold text-foreground mb-4">
+              Verify Your Credential
+            </h1>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              Select the type of credential you want to verify. Our system supports major Nigerian educational and
-              professional certifications.
+              Select the type of credential you want to verify. Our system
+              supports major Nigerian educational and professional
+              certifications.
             </p>
           </div>
 
@@ -136,12 +173,16 @@ export function VerifyDocument() {
                 <CardHeader>
                   <CardTitle className="text-lg">{type.name}</CardTitle>
                   <CardDescription>
-                    {type.needsInstitution ? "Requires institution details" : "Direct verification available"}
+                    {type.needsInstitution
+                      ? "Requires institution details"
+                      : "Direct verification available"}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">Click to verify</span>
+                    <span className="text-sm text-muted-foreground">
+                      Click to verify
+                    </span>
                     <Search className="h-4 w-4 text-primary" />
                   </div>
                 </CardContent>
@@ -163,29 +204,40 @@ export function VerifyDocument() {
           </div>
         </div>
       </div>
-    )
+    );
   }
 
   if (step === "form") {
-    const credentialType = CREDENTIAL_TYPES[selectedType as keyof typeof CREDENTIAL_TYPES]
+    const credentialType =
+      CREDENTIAL_TYPES[selectedType as keyof typeof CREDENTIAL_TYPES];
 
     return (
-      <div className="container py-8">
+      <div className="container py-8 px-4 sm:px-6 lg:px-8">
         <div className="max-w-2xl mx-auto">
           <div className="mb-8">
-            <Button variant="ghost" onClick={() => setStep("select")} className="mb-4">
+            <Button
+              variant="ghost"
+              onClick={() => setStep("select")}
+              className="mb-4"
+            >
               <ArrowLeft className="mr-2 h-4 w-4" />
               Back to Selection
             </Button>
 
-            <h1 className="text-2xl font-bold text-foreground mb-2">Verify {credentialType.name}</h1>
-            <p className="text-muted-foreground">Enter the required information to verify your credential</p>
+            <h1 className="text-2xl font-bold text-foreground mb-2">
+              Verify {credentialType.name}
+            </h1>
+            <p className="text-muted-foreground">
+              Enter the required information to verify your credential
+            </p>
           </div>
 
           <Card>
             <CardHeader>
               <CardTitle>Verification Details</CardTitle>
-              <CardDescription>All fields are required for accurate verification</CardDescription>
+              <CardDescription>
+                All fields are required for accurate verification
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSubmit} className="space-y-6">
@@ -195,21 +247,26 @@ export function VerifyDocument() {
                     {selectedType === "jamb"
                       ? "Registration Number"
                       : selectedType === "nysc"
-                        ? "State Code/Number"
-                        : "Certificate Number"}
+                      ? "State Code/Number"
+                      : "Certificate Number"}
                   </Label>
                   <Input
                     id="number"
                     placeholder={credentialType.example}
-                    value={formData.certificateNumber || formData.registrationNumber || formData.stateCode || ""}
+                    value={
+                      formData.certificateNumber ||
+                      formData.registrationNumber ||
+                      formData.stateCode ||
+                      ""
+                    }
                     onChange={(e) =>
                       setFormData((prev) => ({
                         ...prev,
                         [selectedType === "jamb"
                           ? "registrationNumber"
                           : selectedType === "nysc"
-                            ? "stateCode"
-                            : "certificateNumber"]: e.target.value,
+                          ? "stateCode"
+                          : "certificateNumber"]: e.target.value,
                       }))
                     }
                     required
@@ -223,7 +280,12 @@ export function VerifyDocument() {
                     id="name"
                     placeholder="Enter full name exactly as it appears"
                     value={formData.candidateName || ""}
-                    onChange={(e) => setFormData((prev) => ({ ...prev, candidateName: e.target.value }))}
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        candidateName: e.target.value,
+                      }))
+                    }
                     required
                   />
                 </div>
@@ -234,10 +296,10 @@ export function VerifyDocument() {
                     {selectedType === "university"
                       ? "Graduation Year"
                       : selectedType === "nmcn"
-                        ? "Registration Year"
-                        : selectedType === "nysc"
-                          ? "Service Year"
-                          : "Examination Year"}
+                      ? "Registration Year"
+                      : selectedType === "nysc"
+                      ? "Service Year"
+                      : "Examination Year"}
                   </Label>
                   <Select
                     value={
@@ -253,10 +315,10 @@ export function VerifyDocument() {
                         [selectedType === "university"
                           ? "graduationYear"
                           : selectedType === "nmcn"
-                            ? "registrationYear"
-                            : selectedType === "nysc"
-                              ? "serviceYear"
-                              : "examYear"]: value,
+                          ? "registrationYear"
+                          : selectedType === "nysc"
+                          ? "serviceYear"
+                          : "examYear"]: value,
                       }))
                     }
                   >
@@ -265,12 +327,12 @@ export function VerifyDocument() {
                     </SelectTrigger>
                     <SelectContent>
                       {Array.from({ length: 30 }, (_, i) => {
-                        const year = new Date().getFullYear() - i
+                        const year = new Date().getFullYear() - i;
                         return (
                           <SelectItem key={year} value={year.toString()}>
                             {year}
                           </SelectItem>
-                        )
+                        );
                       })}
                     </SelectContent>
                   </Select>
@@ -284,7 +346,12 @@ export function VerifyDocument() {
                       id="institution"
                       placeholder="e.g., University of Nigeria, Nsukka"
                       value={formData.institution || ""}
-                      onChange={(e) => setFormData((prev) => ({ ...prev, institution: e.target.value }))}
+                      onChange={(e) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          institution: e.target.value,
+                        }))
+                      }
                       required
                     />
                   </div>
@@ -292,12 +359,19 @@ export function VerifyDocument() {
 
                 {/* Additional Notes */}
                 <div className="space-y-2">
-                  <Label htmlFor="notes">Additional Information (Optional)</Label>
+                  <Label htmlFor="notes">
+                    Additional Information (Optional)
+                  </Label>
                   <Textarea
                     id="notes"
                     placeholder="Any additional details that might help with verification"
                     value={formData.notes || ""}
-                    onChange={(e) => setFormData((prev) => ({ ...prev, notes: e.target.value }))}
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        notes: e.target.value,
+                      }))
+                    }
                     rows={3}
                   />
                 </div>
@@ -320,11 +394,12 @@ export function VerifyDocument() {
           </Card>
         </div>
       </div>
-    )
+    );
   }
 
   if (step === "payment") {
-    const credentialType = CREDENTIAL_TYPES[selectedType as keyof typeof CREDENTIAL_TYPES]
+    const credentialType =
+      CREDENTIAL_TYPES[selectedType as keyof typeof CREDENTIAL_TYPES];
 
     return (
       <PaymentStep
@@ -334,20 +409,26 @@ export function VerifyDocument() {
         onBack={() => setStep("form")}
         onPaymentSuccess={handlePaymentSuccess}
       />
-    )
+    );
   }
 
   if (step === "result") {
     return (
-      <div className="container py-8">
+      <div className="container py-8 px-4 sm:px-6 lg:px-8">
         <div className="max-w-2xl mx-auto">
           <Card
-            className={`border-2 ${verificationResult.status === "verified" ? "border-green-500" : "border-red-500"}`}
+            className={`border-2 ${
+              verificationResult.status === "verified"
+                ? "border-green-500"
+                : "border-red-500"
+            }`}
           >
             <CardHeader className="text-center">
               <div
                 className={`mx-auto w-16 h-16 rounded-full flex items-center justify-center mb-4 ${
-                  verificationResult.status === "verified" ? "bg-green-100" : "bg-red-100"
+                  verificationResult.status === "verified"
+                    ? "bg-green-100"
+                    : "bg-red-100"
                 }`}
               >
                 {verificationResult.status === "verified" ? (
@@ -357,9 +438,15 @@ export function VerifyDocument() {
                 )}
               </div>
               <CardTitle
-                className={`text-2xl ${verificationResult.status === "verified" ? "text-green-700" : "text-red-700"}`}
+                className={`text-2xl ${
+                  verificationResult.status === "verified"
+                    ? "text-green-700"
+                    : "text-red-700"
+                }`}
               >
-                {verificationResult.status === "verified" ? "Credential Verified!" : "Credential Not Found"}
+                {verificationResult.status === "verified"
+                  ? "Credential Verified!"
+                  : "Credential Not Found"}
               </CardTitle>
               <CardDescription>
                 {verificationResult.status === "verified"
@@ -370,28 +457,52 @@ export function VerifyDocument() {
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 gap-4">
                 <div>
-                  <Label className="text-sm font-medium text-muted-foreground">Candidate Name</Label>
-                  <p className="text-foreground">{verificationResult.details.candidateName}</p>
+                  <Label className="text-sm font-medium text-muted-foreground">
+                    Candidate Name
+                  </Label>
+                  <p className="text-foreground">
+                    {verificationResult.details.candidateName}
+                  </p>
                 </div>
                 <div>
-                  <Label className="text-sm font-medium text-muted-foreground">Credential Type</Label>
-                  <p className="text-foreground">{verificationResult.details.credentialType}</p>
+                  <Label className="text-sm font-medium text-muted-foreground">
+                    Credential Type
+                  </Label>
+                  <p className="text-foreground">
+                    {verificationResult.details.credentialType}
+                  </p>
                 </div>
                 <div>
-                  <Label className="text-sm font-medium text-muted-foreground">Institution</Label>
-                  <p className="text-foreground">{verificationResult.details.institution}</p>
+                  <Label className="text-sm font-medium text-muted-foreground">
+                    Institution
+                  </Label>
+                  <p className="text-foreground">
+                    {verificationResult.details.institution}
+                  </p>
                 </div>
                 <div>
-                  <Label className="text-sm font-medium text-muted-foreground">Issue Date</Label>
-                  <p className="text-foreground">{verificationResult.details.issueDate}</p>
+                  <Label className="text-sm font-medium text-muted-foreground">
+                    Issue Date
+                  </Label>
+                  <p className="text-foreground">
+                    {verificationResult.details.issueDate}
+                  </p>
                 </div>
                 <div>
-                  <Label className="text-sm font-medium text-muted-foreground">Verification Date</Label>
-                  <p className="text-foreground">{verificationResult.details.verificationDate}</p>
+                  <Label className="text-sm font-medium text-muted-foreground">
+                    Verification Date
+                  </Label>
+                  <p className="text-foreground">
+                    {verificationResult.details.verificationDate}
+                  </p>
                 </div>
                 <div>
-                  <Label className="text-sm font-medium text-muted-foreground">Payment Reference</Label>
-                  <p className="text-foreground">{verificationResult.paymentReference}</p>
+                  <Label className="text-sm font-medium text-muted-foreground">
+                    Payment Reference
+                  </Label>
+                  <p className="text-foreground">
+                    {verificationResult.paymentReference}
+                  </p>
                 </div>
               </div>
 
@@ -403,7 +514,11 @@ export function VerifyDocument() {
                   <Button onClick={handleLoginToSaveResult} className="flex-1">
                     Login to Save Result
                   </Button>
-                  <Button variant="outline" onClick={() => setStep("select")} className="flex-1">
+                  <Button
+                    variant="outline"
+                    onClick={() => setStep("select")}
+                    className="flex-1"
+                  >
                     Verify Another
                   </Button>
                 </div>
@@ -412,8 +527,8 @@ export function VerifyDocument() {
           </Card>
         </div>
       </div>
-    )
+    );
   }
 
-  return null
+  return null;
 }
