@@ -117,64 +117,68 @@ export function TwoFactorVerificationForm() {
   };
 
   return (
-    <div className="space-y-6">
-      {error && (
-        <Alert variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
+    <>
+      <div className="space-y-6">
+        {error && (
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
 
-      <div className="space-y-4">
-        <div className="text-center">
-          <p className="text-sm text-muted-foreground">
-            Code sent to <strong>{email}</strong>
-          </p>
-        </div>
+        <div className="space-y-4">
+          <div className="text-center">
+            <p className="text-sm text-muted-foreground">
+              Code sent to <strong>{email}</strong>
+            </p>
+          </div>
 
-        {/* 6-digit code input */}
-        <div className="flex justify-center space-x-2">
-          {code.map((digit, index) => (
-            <input
-              key={index}
-              ref={(el) => {
-                inputRefs.current[index] = el;
-              }}
-              type="text"
-              inputMode="numeric"
-              pattern="[0-9]"
-              maxLength={1}
-              value={digit}
-              onChange={(e) => handleInputChange(index, e.target.value)}
-              onKeyDown={(e) => handleKeyDown(index, e)}
-              disabled={isLoading}
-              className="w-12 h-12 text-center text-lg font-semibold border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent disabled:opacity-50"
-            />
-          ))}
-        </div>
+          {/* 6-digit code input */}
+          <div className="flex justify-center space-x-2">
+            {code.map((digit, index) => (
+              <input
+                key={index}
+                ref={(el) => {
+                  inputRefs.current[index] = el;
+                }}
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]"
+                maxLength={1}
+                value={digit}
+                onChange={(e) => handleInputChange(index, e.target.value)}
+                onKeyDown={(e) => handleKeyDown(index, e)}
+                disabled={isLoading}
+                className="w-12 h-12 text-center text-lg font-semibold border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent disabled:opacity-50"
+              />
+            ))}
+          </div>
 
-        <Button
-          onClick={() => handleSubmit()}
-          className="w-full"
-          disabled={isLoading || code.some((digit) => digit === "")}
-        >
-          {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          Verify Code
-        </Button>
-
-        <div className="text-center">
           <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={handleResendCode}
-            disabled={isResending}
-            className="text-sm text-muted-foreground hover:text-primary"
+            onClick={() => handleSubmit()}
+            className="w-full"
+            disabled={isLoading || code.some((digit) => digit === "")}
           >
-            {isResending && <RefreshCw className="mr-2 h-3 w-3 animate-spin" />}
-            Didn't receive the code? Resend
+            {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Verify Code
           </Button>
+
+          <div className="text-center">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={handleResendCode}
+              disabled={isResending}
+              className="text-sm text-muted-foreground hover:text-primary"
+            >
+              {isResending && (
+                <RefreshCw className="mr-2 h-3 w-3 animate-spin" />
+              )}
+              Didn't receive the code? Resend
+            </Button>
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }

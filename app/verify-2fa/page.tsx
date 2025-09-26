@@ -36,9 +36,7 @@ export default function Verify2FAPage() {
               your login.
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            <TwoFactorVerificationForm />
-          </CardContent>
+          <CardContent>{/* <TwoFactorVerificationForm /> */}</CardContent>
         </Card>
 
         {/* Footer */}
