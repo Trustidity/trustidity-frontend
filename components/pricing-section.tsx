@@ -1,8 +1,14 @@
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Check, FileCheck, Users, Building2, Globe } from "lucide-react"
-import Link from "next/link"
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Check, FileCheck, Users, Building2, Globe } from "lucide-react";
+import Link from "next/link";
 
 const pricingPlans = [
   {
@@ -88,19 +94,19 @@ const pricingPlans = [
     popular: false,
     target: "government",
   },
-]
+];
 
 export function PricingSection() {
   return (
-    <section className="py-20">
+    <section className="py-20 px-4 sm:px-6 lg:px-8">
       <div className="container">
         <div className="mx-auto max-w-4xl text-center">
           <h1 className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl">
             Transparent Verification Pricing
           </h1>
           <p className="mt-6 text-lg leading-8 text-muted-foreground">
-            Affordable credential verification for everyone. Nigerian residents pay in Naira, international users in
-            USD.
+            Affordable credential verification for everyone. Nigerian residents
+            pay in Naira, international users in USD.
           </p>
           <div className="mt-4 flex items-center justify-center gap-4 text-sm text-muted-foreground">
             <div className="flex items-center gap-2">
@@ -114,10 +120,15 @@ export function PricingSection() {
           </div>
         </div>
 
-        <div className="mx-auto mt-16 max-w-7xl">
-          <div className="grid grid-cols-1 gap-8 lg:grid-cols-2 xl:grid-cols-4">
+        <div className="mx-auto mt-16 max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-1 gap-6 sm:gap-8 lg:grid-cols-2 xl:grid-cols-4">
             {pricingPlans.map((plan) => (
-              <Card key={plan.name} className={`relative ${plan.popular ? "border-primary shadow-lg scale-105" : ""}`}>
+              <Card
+                key={plan.name}
+                className={`relative p-2 sm:p-4 ${
+                  plan.popular ? "border-primary shadow-lg scale-105" : ""
+                }`}
+              >
                 {plan.popular && (
                   <Badge className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-primary text-primary-foreground">
                     Most Popular
@@ -130,14 +141,22 @@ export function PricingSection() {
                     </div>
                   </div>
                   <CardTitle className="text-lg">{plan.name}</CardTitle>
-                  <CardDescription className="text-muted-foreground text-sm">{plan.description}</CardDescription>
+                  <CardDescription className="text-muted-foreground text-sm">
+                    {plan.description}
+                  </CardDescription>
                   <div className="mt-4">
                     <div className="flex flex-col items-center gap-1">
                       <div className="flex items-baseline gap-2">
-                        <span className="text-2xl font-bold text-foreground">{plan.priceNGN}</span>
-                        <span className="text-sm text-muted-foreground">/ {plan.priceUSD}</span>
+                        <span className="text-2xl font-bold text-foreground">
+                          {plan.priceNGN}
+                        </span>
+                        <span className="text-sm text-muted-foreground">
+                          / {plan.priceUSD}
+                        </span>
                       </div>
-                      <span className="text-xs text-muted-foreground">{plan.period}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {plan.period}
+                      </span>
                     </div>
                   </div>
                 </CardHeader>
@@ -146,7 +165,9 @@ export function PricingSection() {
                     {plan.features.map((feature) => (
                       <li key={feature} className="flex items-start">
                         <Check className="h-3 w-3 text-green-600 mr-2 flex-shrink-0 mt-0.5" />
-                        <span className="text-xs text-muted-foreground">{feature}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {feature}
+                        </span>
                       </li>
                     ))}
                   </ul>
@@ -155,13 +176,15 @@ export function PricingSection() {
                       plan.target === "institutions"
                         ? "/partner"
                         : plan.target === "individuals"
-                          ? "/verify"
-                          : `/subscribe?plan=${plan.target}`
+                        ? "/verify"
+                        : `/subscribe?plan=${plan.target}`
                     }
                     className="block"
                   >
                     <Button
-                      className={`w-full text-sm ${plan.popular ? "bg-primary text-primary-foreground" : ""}`}
+                      className={`w-full text-sm ${
+                        plan.popular ? "bg-primary text-primary-foreground" : ""
+                      }`}
                       variant={plan.popular ? "default" : "outline"}
                     >
                       {plan.cta}
@@ -173,21 +196,30 @@ export function PricingSection() {
           </div>
         </div>
 
-        <div className="mx-auto mt-20 max-w-3xl">
-          <h2 className="text-2xl font-bold text-center text-foreground mb-12">Frequently Asked Questions</h2>
+        <div className="mx-auto mt-20 max-w-3xl px-4 sm:px-6 lg:px-8">
+          <h2 className="text-2xl font-bold text-center text-foreground mb-12">
+            Frequently Asked Questions
+          </h2>
           <div className="space-y-8">
             <div>
-              <h3 className="text-lg font-semibold text-foreground mb-2">Which credentials can I verify?</h3>
+              <h3 className="text-lg font-semibold text-foreground mb-2">
+                Which credentials can I verify?
+              </h3>
               <p className="text-muted-foreground">
-                We verify WAEC, JAMB, NECO certificates, university degrees from Nigerian institutions, NYSC
-                certificates, professional certifications (NMCN, NBA, etc.), and other academic credentials.
+                We verify WAEC, JAMB, NECO certificates, university degrees from
+                Nigerian institutions, NYSC certificates, professional
+                certifications (NMCN, NBA, etc.), and other academic
+                credentials.
               </p>
             </div>
             <div>
-              <h3 className="text-lg font-semibold text-foreground mb-2">How long does verification take?</h3>
+              <h3 className="text-lg font-semibold text-foreground mb-2">
+                How long does verification take?
+              </h3>
               <p className="text-muted-foreground">
-                Most verifications are completed instantly for exam bodies like WAEC and JAMB. University degrees may
-                take 24-48 hours depending on the institution's response time.
+                Most verifications are completed instantly for exam bodies like
+                WAEC and JAMB. University degrees may take 24-48 hours depending
+                on the institution's response time.
               </p>
             </div>
             <div>
@@ -195,27 +227,34 @@ export function PricingSection() {
                 Why different prices for Nigeria vs International?
               </h3>
               <p className="text-muted-foreground">
-                We offer affordable Naira pricing for Nigerian residents to ensure accessibility, while international
-                pricing reflects the global market and additional processing requirements.
+                We offer affordable Naira pricing for Nigerian residents to
+                ensure accessibility, while international pricing reflects the
+                global market and additional processing requirements.
               </p>
             </div>
             <div>
-              <h3 className="text-lg font-semibold text-foreground mb-2">What payment methods do you accept?</h3>
+              <h3 className="text-lg font-semibold text-foreground mb-2">
+                What payment methods do you accept?
+              </h3>
               <p className="text-muted-foreground">
-                We accept bank transfers, debit cards, and mobile money for Nigerian users. International users can pay
-                via credit cards, PayPal, and other global payment methods through Paystack.
+                We accept bank transfers, debit cards, and mobile money for
+                Nigerian users. International users can pay via credit cards,
+                PayPal, and other global payment methods through Paystack.
               </p>
             </div>
             <div>
-              <h3 className="text-lg font-semibold text-foreground mb-2">Can institutions join as partners?</h3>
+              <h3 className="text-lg font-semibold text-foreground mb-2">
+                Can institutions join as partners?
+              </h3>
               <p className="text-muted-foreground">
-                Yes! We partner with universities, polytechnics, and examination bodies to provide direct verification
-                services. Contact us to discuss partnership opportunities and revenue sharing.
+                Yes! We partner with universities, polytechnics, and examination
+                bodies to provide direct verification services. Contact us to
+                discuss partnership opportunities and revenue sharing.
               </p>
             </div>
           </div>
         </div>
       </div>
     </section>
-  )
+  );
 }

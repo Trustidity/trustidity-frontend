@@ -1,29 +1,34 @@
-import { Upload, Search, CheckCircle } from "lucide-react"
+import { FileText, Search, CheckCircle } from "lucide-react";
 
 export function HowItWorksSection() {
   const steps = [
     {
-      icon: Upload,
-      title: "Upload",
-      description: "Upload your academic or professional document securely to our platform.",
+      icon: FileText,
+      title: "Provide Details",
+      description:
+        "Enter your credential information including certificate number, name, and institution details.",
     },
     {
       icon: Search,
       title: "Verify",
-      description: "Our system instantly checks the document against institutional databases.",
+      description:
+        "Our system instantly checks the credential against institutional databases and official records.",
     },
     {
       icon: CheckCircle,
       title: "Trusted",
-      description: "Receive a verified certificate that employers and institutions can trust.",
+      description:
+        "Receive a verified certificate that employers and institutions can trust and rely on.",
     },
-  ]
+  ];
 
   return (
     <section id="how-it-works" className="py-20 bg-muted/30">
       <div className="container">
         <div className="mx-auto max-w-2xl text-center">
-          <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">How It Works</h2>
+          <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
+            How It Works
+          </h2>
           <p className="mt-4 text-lg text-muted-foreground">
             Simple, secure, and fast credential verification in three easy steps
           </p>
@@ -40,7 +45,9 @@ export function HowItWorksSection() {
                   <h3 className="mt-6 text-xl font-semibold text-foreground">
                     {index + 1}. {step.title}
                   </h3>
-                  <p className="mt-2 text-muted-foreground text-pretty">{step.description}</p>
+                  <p className="mt-2 text-muted-foreground text-pretty">
+                    {step.description}
+                  </p>
                 </div>
                 {index < steps.length - 1 && (
                   <div className="absolute top-8 left-1/2 hidden w-full md:block">
@@ -53,5 +60,5 @@ export function HowItWorksSection() {
         </div>
       </div>
     </section>
-  )
+  );
 }
