@@ -133,7 +133,7 @@ export default function DocumentsPage() {
   };
 
   return (
-    <ProtectedRoute allowedRoles={["user", "institution_admin"]}>
+    <ProtectedRoute allowedRoles={["user", "institution_admin", "super_admin"]}>
       <DashboardLayout navigation={navigation}>
         <div className="space-y-8">
           {/* Header */}
