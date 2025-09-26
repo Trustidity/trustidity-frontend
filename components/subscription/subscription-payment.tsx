@@ -1,15 +1,25 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import { useSearchParams, useRouter } from "next/navigation"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Badge } from "@/components/ui/badge"
-import { CreditCard, MapPin, Shield, ArrowLeft, Check } from "lucide-react"
-import { detectUserLocation, formatCurrency, type LocationInfo } from "@/lib/geolocation"
-import { initializePayment, convertToSmallestUnit } from "@/lib/paystack"
+import { useState, useEffect } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { CreditCard, MapPin, Shield, ArrowLeft, Check } from "lucide-react";
+import {
+  detectUserLocation,
+  formatCurrency,
+  type LocationInfo,
+} from "@/lib/geolocation";
+import { initializePayment, convertToSmallestUnit } from "@/lib/paystack";
 
 const planDetails = {
   individual: {
@@ -56,7 +66,7 @@ const planDetails = {
       "Compliance reporting",
     ],
   },
-}
+};
 
 const planMapping: Record<string, keyof typeof planDetails> = {
   individual: "individual",
@@ -66,63 +76,68 @@ const planMapping: Record<string, keyof typeof planDetails> = {
   government: "government",
   embassy: "government",
   "embassy-government": "government",
-}
+};
 
 export function SubscriptionPayment() {
-  const searchParams = useSearchParams()
-  const router = useRouter()
-  const planParam = searchParams.get("plan")
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const planParam = searchParams.get("plan");
 
-  const planType = planParam ? planMapping[planParam.toLowerCase()] : null
+  const planType = planParam ? planMapping[planParam.toLowerCase()] : null;
 
-  const [location, setLocation] = useState<LocationInfo | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const [isProcessingPayment, setIsProcessingPayment] = useState(false)
+  const [location, setLocation] = useState<LocationInfo | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [formData, setFormData] = useState({
     email: "",
     fullName: "",
     organization: "",
     phone: "",
-  })
+  });
 
   useEffect(() => {
     detectUserLocation().then((locationInfo) => {
-      setLocation(locationInfo)
-      setIsLoading(false)
-    })
-  }, [])
+      setLocation(locationInfo);
+      setIsLoading(false);
+    });
+  }, []);
 
-  const plan = planType ? planDetails[planType] : null
+  const plan = planType ? planDetails[planType] : null;
 
   if (!plan || !planType) {
     return (
-      <div className="container py-8">
+      <div className="container py-8 px-4 sm:px-6 lg:px-8">
         <div className="max-w-2xl mx-auto text-center">
           <h1 className="text-2xl font-bold mb-4">Invalid Plan</h1>
           <p className="text-muted-foreground mb-6">
-            The selected plan "{planParam}" was not found. Please select a valid plan.
+            The selected plan "{planParam}" was not found. Please select a valid
+            plan.
           </p>
-          <Button onClick={() => router.push("/pricing")}>Back to Pricing</Button>
+          <Button onClick={() => router.push("/pricing")}>
+            Back to Pricing
+          </Button>
         </div>
       </div>
-    )
+    );
   }
 
   const handleInputChange = (field: string, value: string) => {
-    setFormData((prev) => ({ ...prev, [field]: value }))
-  }
+    setFormData((prev) => ({ ...prev, [field]: value }));
+  };
 
   const handlePayment = async () => {
     if (!location || !formData.email || !formData.fullName) {
-      alert("Please fill in all required fields")
-      return
+      alert("Please fill in all required fields");
+      return;
     }
 
-    setIsProcessingPayment(true)
+    setIsProcessingPayment(true);
 
     try {
-      const price = location.currency === "NGN" ? plan.priceNGN : plan.priceUSD
-      const reference = `TRU_SUB_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+      const price = location.currency === "NGN" ? plan.priceNGN : plan.priceUSD;
+      const reference = `TRU_SUB_${Date.now()}_${Math.random()
+        .toString(36)
+        .substr(2, 9)}`;
 
       const paymentData = {
         email: formData.email,
@@ -137,27 +152,27 @@ export function SubscriptionPayment() {
           phone: formData.phone,
           subscriptionType: "plan_purchase",
         },
-      }
+      };
 
-      const response = await initializePayment(paymentData)
+      const response = await initializePayment(paymentData);
 
       if (response.status) {
         // Redirect to Paystack payment page
-        window.location.href = response.data.authorization_url
+        window.location.href = response.data.authorization_url;
       } else {
-        throw new Error(response.message)
+        throw new Error(response.message);
       }
     } catch (error) {
-      console.error("Payment error:", error)
-      alert("Payment initialization failed. Please try again.")
+      console.error("Payment error:", error);
+      alert("Payment initialization failed. Please try again.");
     } finally {
-      setIsProcessingPayment(false)
+      setIsProcessingPayment(false);
     }
-  }
+  };
 
   if (isLoading) {
     return (
-      <div className="container py-8">
+      <div className="container py-8 px-4 sm:px-6 lg:px-8">
         <div className="max-w-2xl mx-auto">
           <Card>
             <CardContent className="flex items-center justify-center py-12">
@@ -167,22 +182,30 @@ export function SubscriptionPayment() {
           </Card>
         </div>
       </div>
-    )
+    );
   }
 
-  const price = location?.currency === "NGN" ? plan.priceNGN : plan.priceUSD
+  const price = location?.currency === "NGN" ? plan.priceNGN : plan.priceUSD;
 
   return (
-    <div className="container py-8">
+    <div className="container py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-2xl mx-auto">
         <div className="mb-8">
-          <Button variant="ghost" onClick={() => router.push("/pricing")} className="mb-4">
+          <Button
+            variant="ghost"
+            onClick={() => router.push("/pricing")}
+            className="mb-4"
+          >
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back to Pricing
           </Button>
 
-          <h1 className="text-2xl font-bold text-foreground mb-2">Subscribe to {plan.name}</h1>
-          <p className="text-muted-foreground">Complete your subscription to get started</p>
+          <h1 className="text-2xl font-bold text-foreground mb-2">
+            Subscribe to {plan.name}
+          </h1>
+          <p className="text-muted-foreground">
+            Complete your subscription to get started
+          </p>
         </div>
 
         <div className="space-y-6">
@@ -199,7 +222,9 @@ export function SubscriptionPayment() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="font-medium">{location.country}</p>
-                    <p className="text-sm text-muted-foreground">Pricing in {location.currency}</p>
+                    <p className="text-sm text-muted-foreground">
+                      Pricing in {location.currency}
+                    </p>
                   </div>
                   <Badge variant="outline">{location.countryCode}</Badge>
                 </div>
@@ -213,7 +238,9 @@ export function SubscriptionPayment() {
               <CardTitle>{plan.name}</CardTitle>
               <CardDescription>
                 <span className="text-2xl font-bold text-primary">
-                  {location ? formatCurrency(price, location.currency) : `₦${plan.priceNGN} / $${plan.priceUSD}`}
+                  {location
+                    ? formatCurrency(price, location.currency)
+                    : `₦${plan.priceNGN} / $${plan.priceUSD}`}
                 </span>
                 <span className="text-sm ml-2">{plan.period}</span>
               </CardDescription>
@@ -234,7 +261,9 @@ export function SubscriptionPayment() {
           <Card>
             <CardHeader>
               <CardTitle>Contact Information</CardTitle>
-              <CardDescription>We'll use this information for your account</CardDescription>
+              <CardDescription>
+                We'll use this information for your account
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -243,7 +272,9 @@ export function SubscriptionPayment() {
                   <Input
                     id="fullName"
                     value={formData.fullName}
-                    onChange={(e) => handleInputChange("fullName", e.target.value)}
+                    onChange={(e) =>
+                      handleInputChange("fullName", e.target.value)
+                    }
                     placeholder="Enter your full name"
                     required
                   />
@@ -267,7 +298,9 @@ export function SubscriptionPayment() {
                   <Input
                     id="organization"
                     value={formData.organization}
-                    onChange={(e) => handleInputChange("organization", e.target.value)}
+                    onChange={(e) =>
+                      handleInputChange("organization", e.target.value)
+                    }
                     placeholder="Company/Institution name"
                   />
                 </div>
@@ -305,7 +338,9 @@ export function SubscriptionPayment() {
             onClick={handlePayment}
             className="w-full"
             size="lg"
-            disabled={isProcessingPayment || !formData.email || !formData.fullName}
+            disabled={
+              isProcessingPayment || !formData.email || !formData.fullName
+            }
           >
             {isProcessingPayment ? (
               <>
@@ -316,16 +351,19 @@ export function SubscriptionPayment() {
               <>
                 <CreditCard className="mr-2 h-4 w-4" />
                 Subscribe for{" "}
-                {location ? formatCurrency(price, location.currency) : `₦${plan.priceNGN} / $${plan.priceUSD}`}
+                {location
+                  ? formatCurrency(price, location.currency)
+                  : `₦${plan.priceNGN} / $${plan.priceUSD}`}
               </>
             )}
           </Button>
 
           <p className="text-xs text-center text-muted-foreground">
-            By proceeding, you agree to our Terms of Service and Privacy Policy. Your payment is secure and encrypted.
+            By proceeding, you agree to our Terms of Service and Privacy Policy.
+            Your payment is secure and encrypted.
           </p>
         </div>
       </div>
     </div>
-  )
+  );
 }

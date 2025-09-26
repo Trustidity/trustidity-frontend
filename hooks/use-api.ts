@@ -105,6 +105,47 @@ class ApiClient {
     });
   }
 
+  async forgotPassword(
+    email: string
+  ): Promise<ApiResponse<{ message: string }>> {
+    return this.request("/auth/forgot-password", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    });
+  }
+
+  async resetPassword(
+    token: string,
+    password: string
+  ): Promise<ApiResponse<{ message: string }>> {
+    return this.request("/auth/reset-password", {
+      method: "POST",
+      body: JSON.stringify({ token, password }),
+    });
+  }
+
+  async verify2FA(
+    email: string,
+    code: string
+  ): Promise<
+    ApiResponse<{
+      user: User;
+      tokens: { accessToken: string; refreshToken: string };
+    }>
+  > {
+    return this.request("/auth/verify-2fa", {
+      method: "POST",
+      body: JSON.stringify({ email, code }),
+    });
+  }
+
+  async resend2FA(email: string): Promise<ApiResponse<{ message: string }>> {
+    return this.request("/auth/resend-2fa", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    });
+  }
+
   // Document endpoints
   async uploadDocument(formData: FormData): Promise<ApiResponse<Document>> {
     const token = getToken();
@@ -271,6 +312,10 @@ export const useApi = () => {
     login: apiClient.login.bind(apiClient),
     register: apiClient.register.bind(apiClient),
     refreshToken: apiClient.refreshToken.bind(apiClient),
+    forgotPassword: apiClient.forgotPassword.bind(apiClient),
+    resetPassword: apiClient.resetPassword.bind(apiClient),
+    verify2FA: apiClient.verify2FA.bind(apiClient),
+    resend2FA: apiClient.resend2FA.bind(apiClient),
 
     // Documents
     uploadDocument: apiClient.uploadDocument.bind(apiClient),
