@@ -141,7 +141,7 @@ export function DashboardLayout({
                   >
                     <Avatar className="h-8 w-8">
                       <AvatarFallback className="bg-primary text-primary-foreground">
-                        {auth.user?.name?.charAt(0).toUpperCase()}
+                        {auth.user?.firstName?.charAt(0).toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
                   </Button>
@@ -151,7 +151,7 @@ export function DashboardLayout({
                 <CustomDropdownLabel>
                   <div className="flex flex-col space-y-1">
                     <p className="text-sm font-medium leading-none">
-                      {auth.user?.name}
+                      {auth.user?.firstName} {auth.user?.lastName}
                     </p>
                     <p className="text-xs leading-none text-muted-foreground">
                       {auth.user?.email}
