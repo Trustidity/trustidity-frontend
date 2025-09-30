@@ -6,6 +6,9 @@ export interface User {
   lastName: string;
   phoneNumber?: string;
   organization?: string;
+  institutionId?: string;
+  companyId?: string;
+  country?: string;
   role: "user" | "institution_admin" | "super_admin" | "admin" | "employer";
   status: "active" | "inactive" | "suspended";
   emailVerified: boolean;
@@ -35,8 +38,25 @@ export const removeToken = (): void => {
 export const isTokenExpired = (token: string): boolean => {
   try {
     const payload = JSON.parse(atob(token.split(".")[1]));
-    return payload.exp * 1000 < Date.now();
+    const bufferTime = 5 * 60 * 1000; // 5 minutes in milliseconds
+    return payload.exp * 1000 < Date.now() + bufferTime;
   } catch {
     return true;
   }
+};
+
+export const getLastActivity = (): number => {
+  if (typeof window === "undefined") return Date.now();
+  const stored = localStorage.getItem("trustidity_last_activity");
+  return stored ? Number.parseInt(stored, 10) : Date.now();
+};
+
+export const setLastActivity = (timestamp: number): void => {
+  if (typeof window === "undefined") return;
+  localStorage.setItem("trustidity_last_activity", timestamp.toString());
+};
+
+export const removeLastActivity = (): void => {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem("trustidity_last_activity");
 };

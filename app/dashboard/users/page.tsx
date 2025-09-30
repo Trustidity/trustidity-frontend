@@ -1,3 +1,4 @@
+// app/dashboard/users/page.tsx or similar file path
 "use client";
 
 import { ProtectedRoute } from "@/components/auth/protected-route";
@@ -24,8 +25,10 @@ import {
   CheckCircle,
   AlertTriangle,
   DollarSign,
+  Loader2,
+  RefreshCw,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Select,
   SelectContent,
@@ -42,6 +45,9 @@ import {
 } from "@/components/ui/dialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
+import { useUserApi } from "@/hooks/use-user-api";
+import { useToast } from "@/hooks/use-toast";
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: Shield },
@@ -56,107 +62,239 @@ const navigation = [
   { name: "System Logs", href: "/dashboard/logs", icon: Shield },
 ];
 
-const users = [
-  {
-    id: "1",
-    name: "John Smith",
-    email: "john.smith@email.com",
-    role: "individual",
-    status: "active",
-    joinDate: "2024-01-15",
-    lastActive: "2024-01-25",
-    verificationsCount: 5,
-    subscriptionPlan: "basic",
-    location: "Lagos, Nigeria",
-    phoneNumber: "+234 801 234 5678",
-  },
-  {
-    id: "2",
-    name: "TechCorp HR",
-    email: "hr@techcorp.com",
-    role: "employer",
-    status: "active",
-    joinDate: "2024-01-10",
-    lastActive: "2024-01-24",
-    verificationsCount: 127,
-    subscriptionPlan: "premium",
-    location: "Abuja, Nigeria",
-    phoneNumber: "+234 802 345 6789",
-    companySize: "500-1000 employees",
-  },
-  {
-    id: "3",
-    name: "University of Nigeria, Nsukka",
-    email: "admin@unn.edu.ng",
-    role: "institution",
-    status: "active",
-    joinDate: "2023-12-01",
-    lastActive: "2024-01-25",
-    verificationsCount: 2847,
-    subscriptionPlan: "enterprise",
-    location: "Nsukka, Nigeria",
-    phoneNumber: "+234 803 456 7890",
-    institutionType: "University",
-  },
-  {
-    id: "4",
-    name: "Sarah Johnson",
-    email: "sarah.j@email.com",
-    role: "individual",
-    status: "suspended",
-    joinDate: "2024-01-20",
-    lastActive: "2024-01-22",
-    verificationsCount: 2,
-    subscriptionPlan: "free",
-    location: "Port Harcourt, Nigeria",
-    phoneNumber: "+234 804 567 8901",
-    suspensionReason: "Suspicious activity detected",
-  },
-  {
-    id: "5",
-    name: "Global Engineering Ltd",
-    email: "verify@globaleng.com",
-    role: "employer",
-    status: "pending",
-    joinDate: "2024-01-22",
-    lastActive: "Never",
-    verificationsCount: 0,
-    subscriptionPlan: "basic",
-    location: "Kano, Nigeria",
-    phoneNumber: "+234 805 678 9012",
-    companySize: "100-500 employees",
-  },
-];
+// interface User {
+//   id: string;
+//   email: string;
+//   firstName: string;
+//   lastName: string;
+//   role: string;
+//   status: string;
+//   emailVerified: boolean;
+//   organization?: string;
+//   country?: string;
+//   lastLoginAt?: string;
+//   createdAt: string;
+// }
+
+interface User {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  phoneNumber?: string;
+  organization?: string;
+  role: "user" | "institution_admin" | "employer" | "super_admin";
+  status: "active" | "inactive" | "suspended";
+  emailVerified: boolean;
+  country?: string;
+  lastLoginAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface UserStats {
+  totalUsers: number;
+  activeUsers: number;
+  institutions: number;
+  employers: number;
+  suspended: number;
+}
 
 export default function UsersPage() {
+  const [users, setUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [selectedUser, setSelectedUser] = useState<any>(null);
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [isActionOpen, setIsActionOpen] = useState(false);
   const [actionType, setActionType] = useState("");
-
-  const filteredUsers = users.filter((user) => {
-    const matchesSearch =
-      user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.location.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesRole = roleFilter === "all" || user.role === roleFilter;
-    const matchesStatus =
-      statusFilter === "all" || user.status === statusFilter;
-    return matchesSearch && matchesRole && matchesStatus;
+  const [actionReason, setActionReason] = useState("");
+  const [actionLoading, setActionLoading] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [userStats, setUserStats] = useState<UserStats>({
+    totalUsers: 0,
+    activeUsers: 0,
+    institutions: 0,
+    employers: 0,
+    suspended: 0,
   });
 
-  const handleUserAction = (user: any, action: string) => {
+  const userApi = useUserApi();
+  const { toast } = useToast();
+  const isFetching = useRef(false); // Track ongoing requests
+  const debounceTimeout = useRef<NodeJS.Timeout | null>(null); // Store debounce timeout
+
+  const fetchUsers = useCallback(
+    async (
+      page = 1,
+      search = "",
+      role = "all",
+      status = "all",
+      retryCount = 0
+    ) => {
+      if (isFetching.current) return; // Prevent concurrent requests
+      isFetching.current = true;
+
+      try {
+        setLoading(true);
+        setError(null);
+
+        const response = await userApi.getUsers(
+          page,
+          20,
+          search || undefined,
+          role !== "all" ? role : undefined,
+          status !== "all" ? status : undefined
+        );
+
+        if (response.success && response.data) {
+          setUsers(response.data.users);
+          setCurrentPage(response.data.pagination.page);
+          setTotalPages(response.data.pagination.pages);
+
+          const stats = response.data.users.reduce(
+            (acc, user) => {
+              acc.totalUsers++;
+              if (user.status === "active") acc.activeUsers++;
+              if (user.role === "institution_admin") acc.institutions++;
+              if (user.role === "employer") acc.employers++;
+              if (user.status === "suspended") acc.suspended++;
+              return acc;
+            },
+            {
+              totalUsers: 0,
+              activeUsers: 0,
+              institutions: 0,
+              employers: 0,
+              suspended: 0,
+            }
+          );
+          setUserStats(stats);
+        } else if (
+          response.error?.includes("429") &&
+          retryCount < 3 // Limit retries
+        ) {
+          // Handle 429 error with exponential backoff
+          const delay = Math.pow(2, retryCount) * 1000; // 1s, 2s, 4s
+          await new Promise((resolve) => setTimeout(resolve, delay));
+          return fetchUsers(page, search, role, status, retryCount + 1);
+        } else {
+          setError(response.error || "Failed to fetch users");
+          toast({
+            title: "Error",
+            description: response.error || "Failed to fetch users",
+            variant: "destructive",
+          });
+        }
+      } catch (err) {
+        const errorMessage =
+          err instanceof Error ? err.message : "An unexpected error occurred";
+        setError(errorMessage);
+        toast({
+          title: "Error",
+          description: errorMessage,
+          variant: "destructive",
+        });
+      } finally {
+        setLoading(false);
+        isFetching.current = false;
+      }
+    },
+    [userApi, toast]
+  );
+
+  // Consolidated useEffect for initial load and filter changes
+  useEffect(() => {
+    if (debounceTimeout.current) {
+      clearTimeout(debounceTimeout.current); // Clear previous timeout
+    }
+
+    debounceTimeout.current = setTimeout(() => {
+      fetchUsers(1, searchQuery, roleFilter, statusFilter);
+    }, 500);
+
+    return () => {
+      if (debounceTimeout.current) {
+        clearTimeout(debounceTimeout.current); // Cleanup on unmount
+      }
+    };
+  }, [searchQuery, roleFilter, statusFilter, fetchUsers]);
+
+  const displayUsers = users;
+
+  const handleViewDetails = (user: User) => {
+    setSelectedUser(user);
+    setIsDetailsOpen(true);
+  };
+
+  const handleUserAction = (user: User, action: string) => {
     setSelectedUser(user);
     setActionType(action);
     setIsActionOpen(true);
   };
 
-  const handleViewDetails = (user: any) => {
-    setSelectedUser(user);
-    setIsDetailsOpen(true);
+  const executeUserAction = async () => {
+    if (!selectedUser || !actionType) return;
+
+    setActionLoading(true);
+
+    try {
+      let response;
+      switch (actionType) {
+        case "suspend":
+          response = await userApi.suspendUser(selectedUser.id, actionReason);
+          break;
+        case "activate":
+          response = await userApi.activateUser(selectedUser.id);
+          break;
+        case "delete":
+          response = await userApi.deleteUser(selectedUser.id);
+          break;
+        case "edit":
+          response = await userApi.editUser(selectedUser.id, {
+            firstName: selectedUser.firstName,
+            lastName: selectedUser.lastName,
+            email: selectedUser.email,
+            role: selectedUser.role,
+            status: selectedUser.status,
+            organization: selectedUser.organization,
+            country: selectedUser.country,
+          });
+          break;
+        default:
+          return;
+      }
+
+      if (response.success) {
+        toast({
+          title: "Success",
+          description: `User ${actionType}ed successfully`,
+          variant: "default",
+        });
+        fetchUsers(currentPage, searchQuery, roleFilter, statusFilter);
+      } else {
+        toast({
+          title: "Error",
+          description: response.error || `Failed to ${actionType} user`,
+          variant: "destructive",
+        });
+      }
+    } catch (err) {
+      const errorMessage =
+        err instanceof Error ? err.message : "An unexpected error occurred";
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    } finally {
+      setActionLoading(false);
+      setIsActionOpen(false);
+    }
   };
 
   const getStatusBadge = (status: string) => {
@@ -186,33 +324,55 @@ export default function UsersPage() {
         );
       case "admin":
         return <Badge variant="default">Admin</Badge>;
+      case "super_admin":
+        return <Badge className="bg-red-100 text-red-800">Super Admin</Badge>;
       default:
         return <Badge variant="secondary">{role}</Badge>;
     }
   };
 
-  const getPlanBadge = (plan: string) => {
-    switch (plan) {
-      case "free":
-        return <Badge variant="secondary">Free</Badge>;
-      case "basic":
-        return <Badge variant="outline">Basic</Badge>;
-      case "premium":
-        return <Badge className="bg-blue-100 text-blue-800">Premium</Badge>;
-      case "enterprise":
-        return (
-          <Badge className="bg-purple-100 text-purple-800">Enterprise</Badge>
-        );
-      default:
-        return <Badge variant="secondary">{plan}</Badge>;
-    }
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
   };
+
+  if (loading && users.length === 0) {
+    return (
+      <ProtectedRoute allowedRoles={["admin", "super_admin"]}>
+        <DashboardLayout navigation={navigation}>
+          <div className="flex items-center justify-center h-64">
+            <Loader2 className="h-8 w-8 animate-spin" />
+          </div>
+        </DashboardLayout>
+      </ProtectedRoute>
+    );
+  }
+
+  if (error && users.length === 0) {
+    return (
+      <ProtectedRoute allowedRoles={["admin", "super_admin"]}>
+        <DashboardLayout navigation={navigation}>
+          <div className="flex flex-col items-center justify-center h-64 space-y-4">
+            <AlertTriangle className="h-12 w-12 text-red-500" />
+            <h3 className="text-lg font-medium">Failed to load users</h3>
+            <p className="text-muted-foreground">{error}</p>
+            <Button onClick={() => fetchUsers(1)}>
+              <RefreshCw className="mr-2 h-4 w-4" />
+              Try Again
+            </Button>
+          </div>
+        </DashboardLayout>
+      </ProtectedRoute>
+    );
+  }
 
   return (
     <ProtectedRoute allowedRoles={["admin", "super_admin"]}>
       <DashboardLayout navigation={navigation}>
         <div className="space-y-8">
-          {/* Header */}
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold text-foreground">
@@ -222,13 +382,23 @@ export default function UsersPage() {
                 Manage all users, their roles, and access permissions
               </p>
             </div>
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              Add User
-            </Button>
+            <div className="flex items-center space-x-2">
+              <Button
+                variant="outline"
+                onClick={() =>
+                  fetchUsers(currentPage, searchQuery, roleFilter, statusFilter)
+                }
+              >
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Refresh
+              </Button>
+              <Button>
+                <Plus className="mr-2 h-4 w-4" />
+                Add User
+              </Button>
+            </div>
           </div>
 
-          {/* Stats Cards */}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -238,7 +408,7 @@ export default function UsersPage() {
                 <Users className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{users.length}</div>
+                <div className="text-2xl font-bold">{userStats.totalUsers}</div>
               </CardContent>
             </Card>
             <Card>
@@ -250,7 +420,7 @@ export default function UsersPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-green-600">
-                  {users.filter((u) => u.status === "active").length}
+                  {userStats.activeUsers}
                 </div>
               </CardContent>
             </Card>
@@ -263,7 +433,7 @@ export default function UsersPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-purple-600">
-                  {users.filter((u) => u.role === "institution").length}
+                  {userStats.institutions}
                 </div>
               </CardContent>
             </Card>
@@ -274,7 +444,7 @@ export default function UsersPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-blue-600">
-                  {users.filter((u) => u.role === "employer").length}
+                  {userStats.employers}
                 </div>
               </CardContent>
             </Card>
@@ -285,13 +455,12 @@ export default function UsersPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-red-600">
-                  {users.filter((u) => u.status === "suspended").length}
+                  {userStats.suspended}
                 </div>
               </CardContent>
             </Card>
           </div>
 
-          {/* Search and Filter */}
           <Card>
             <CardHeader>
               <CardTitle>Search Users</CardTitle>
@@ -302,7 +471,7 @@ export default function UsersPage() {
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
-                      placeholder="Search by name, email, or location..."
+                      placeholder="Search by name, email, or organization..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       className="pl-10"
@@ -316,10 +485,12 @@ export default function UsersPage() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Roles</SelectItem>
-                      <SelectItem value="individual">Individual</SelectItem>
+                      <SelectItem value="user">User</SelectItem>
+                      <SelectItem value="institution_admin">
+                        Institution Admin
+                      </SelectItem>
                       <SelectItem value="employer">Employer</SelectItem>
-                      <SelectItem value="institution">Institution</SelectItem>
-                      <SelectItem value="admin">Admin</SelectItem>
+                      <SelectItem value="super_admin">Super Admin</SelectItem>
                     </SelectContent>
                   </Select>
                   <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -329,9 +500,8 @@ export default function UsersPage() {
                     <SelectContent>
                       <SelectItem value="all">All Status</SelectItem>
                       <SelectItem value="active">Active</SelectItem>
-                      <SelectItem value="pending">Pending</SelectItem>
-                      <SelectItem value="suspended">Suspended</SelectItem>
                       <SelectItem value="inactive">Inactive</SelectItem>
+                      <SelectItem value="suspended">Suspended</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -339,7 +509,6 @@ export default function UsersPage() {
             </CardContent>
           </Card>
 
-          {/* Users List */}
           <Card>
             <CardHeader>
               <CardTitle>All Users</CardTitle>
@@ -348,103 +517,113 @@ export default function UsersPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {filteredUsers.map((user) => (
-                  <div
-                    key={user.id}
-                    className="border rounded-lg p-4 hover:bg-muted/50 transition-colors"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-4 flex-1">
-                        <Avatar className="h-12 w-12">
-                          <AvatarFallback className="bg-primary text-primary-foreground">
-                            {user.name
-                              .split(" ")
-                              .map((n) => n[0])
-                              .join("")
-                              .slice(0, 2)}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center space-x-2 mb-1">
-                            <h3 className="font-medium text-foreground">
-                              {user.name}
-                            </h3>
-                            {getRoleBadge(user.role)}
-                            {getStatusBadge(user.status)}
-                            {getPlanBadge(user.subscriptionPlan)}
-                          </div>
-                          <p className="text-sm text-muted-foreground">
-                            {user.email}
-                          </p>
-                          <div className="flex items-center space-x-4 mt-2 text-xs text-muted-foreground">
-                            <span>Location: {user.location}</span>
-                            <span>Joined: {user.joinDate}</span>
-                            <span>Last Active: {user.lastActive}</span>
-                            <span>
-                              Verifications: {user.verificationsCount}
-                            </span>
-                          </div>
-                          {user.suspensionReason && (
-                            <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-sm text-red-800">
-                              <strong>Suspended:</strong>{" "}
-                              {user.suspensionReason}
+              {loading && (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin mr-2" />
+                  Loading users...
+                </div>
+              )}
+
+              {!loading && (
+                <div className="space-y-4">
+                  {displayUsers.map((user) => (
+                    <div
+                      key={user.id}
+                      className="border rounded-lg p-4 hover:bg-muted/50 transition-colors"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-4 flex-1">
+                          <Avatar className="h-12 w-12">
+                            <AvatarFallback className="bg-primary text-primary-foreground">
+                              {`${user.firstName[0]}${user.lastName[0]}`}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center space-x-2 mb-1">
+                              <h3 className="font-medium text-foreground">{`${user.firstName} ${user.lastName}`}</h3>
+                              {getRoleBadge(user.role)}
+                              {getStatusBadge(user.status)}
+                              {user.emailVerified && (
+                                <Badge
+                                  variant="outline"
+                                  className="text-green-600"
+                                >
+                                  Verified
+                                </Badge>
+                              )}
                             </div>
-                          )}
+                            <p className="text-sm text-muted-foreground">
+                              {user.email}
+                            </p>
+                            <div className="flex items-center space-x-4 mt-2 text-xs text-muted-foreground">
+                              {user.organization && (
+                                <span>Organization: {user.organization}</span>
+                              )}
+                              {user.country && (
+                                <span>Country: {user.country}</span>
+                              )}
+                              <span>Joined: {formatDate(user.createdAt)}</span>
+                              {user.lastLoginAt && (
+                                <span>
+                                  Last Login: {formatDate(user.lastLoginAt)}
+                                </span>
+                              )}
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                      <div className="flex items-center space-x-2 ml-4">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleViewDetails(user)}
-                        >
-                          View Details
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleUserAction(user, "edit")}
-                        >
-                          <Edit className="h-4 w-4 mr-1" />
-                          Edit
-                        </Button>
-                        {user.status === "active" ? (
+                        <div className="flex items-center space-x-2 ml-4">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleViewDetails(user)}
+                          >
+                            View Details
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleUserAction(user, "edit")}
+                          >
+                            <Edit className="h-4 w-4 mr-1" />
+                            Edit
+                          </Button>
+                          {user.status === "active" ? (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-red-600 hover:text-red-700 bg-transparent"
+                              onClick={() => handleUserAction(user, "suspend")}
+                            >
+                              <Ban className="h-4 w-4 mr-1" />
+                              Suspend
+                            </Button>
+                          ) : user.status === "suspended" ? (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-green-600 hover:text-green-700 bg-transparent"
+                              onClick={() => handleUserAction(user, "activate")}
+                            >
+                              <CheckCircle className="h-4 w-4 mr-1" />
+                              Activate
+                            </Button>
+                          ) : null}
                           <Button
                             size="sm"
                             variant="outline"
                             className="text-red-600 hover:text-red-700 bg-transparent"
-                            onClick={() => handleUserAction(user, "suspend")}
+                            onClick={() => handleUserAction(user, "delete")}
                           >
-                            <Ban className="h-4 w-4 mr-1" />
-                            Suspend
+                            <Trash2 className="h-4 w-4" />
                           </Button>
-                        ) : user.status === "suspended" ? (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="text-green-600 hover:text-green-700 bg-transparent"
-                            onClick={() => handleUserAction(user, "activate")}
-                          >
-                            <CheckCircle className="h-4 w-4 mr-1" />
-                            Activate
-                          </Button>
-                        ) : null}
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="text-red-600 hover:text-red-700 bg-transparent"
-                          onClick={() => handleUserAction(user, "delete")}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
 
-              {filteredUsers.length === 0 && (
+              {!loading && displayUsers.length === 0 && (
                 <div className="text-center py-12">
                   <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                   <h3 className="text-lg font-medium text-foreground mb-2">
@@ -459,10 +638,49 @@ export default function UsersPage() {
                   </p>
                 </div>
               )}
+
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between mt-6">
+                  <p className="text-sm text-muted-foreground">
+                    Page {currentPage} of {totalPages}
+                  </p>
+                  <div className="flex items-center space-x-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        fetchUsers(
+                          currentPage - 1,
+                          searchQuery,
+                          roleFilter,
+                          statusFilter
+                        )
+                      }
+                      disabled={currentPage <= 1 || loading}
+                    >
+                      Previous
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        fetchUsers(
+                          currentPage + 1,
+                          searchQuery,
+                          roleFilter,
+                          statusFilter
+                        )
+                      }
+                      disabled={currentPage >= totalPages || loading}
+                    >
+                      Next
+                    </Button>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
 
-          {/* User Details Dialog */}
           <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
             <DialogContent className="max-w-2xl">
               <DialogHeader>
@@ -473,21 +691,36 @@ export default function UsersPage() {
               </DialogHeader>
               {selectedUser && (
                 <Tabs defaultValue="profile" className="space-y-4">
-                  <TabsList className="grid w-full grid-cols-3">
+                  <TabsList className="grid w-full grid-cols-2">
                     <TabsTrigger value="profile">Profile</TabsTrigger>
                     <TabsTrigger value="activity">Activity</TabsTrigger>
-                    <TabsTrigger value="billing">Billing</TabsTrigger>
                   </TabsList>
 
                   <TabsContent value="profile" className="space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
-                        <Label>Full Name</Label>
-                        <p className="font-medium">{selectedUser.name}</p>
+                        <Label>First Name</Label>
+                        <p className="font-medium">{selectedUser.firstName}</p>
+                      </div>
+                      <div>
+                        <Label>Last Name</Label>
+                        <p className="font-medium">{selectedUser.lastName}</p>
                       </div>
                       <div>
                         <Label>Email Address</Label>
                         <p className="font-medium">{selectedUser.email}</p>
+                      </div>
+                      <div>
+                        <Label>Email Verified</Label>
+                        <div>
+                          {selectedUser.emailVerified ? (
+                            <Badge className="bg-green-100 text-green-800">
+                              Verified
+                            </Badge>
+                          ) : (
+                            <Badge variant="secondary">Not Verified</Badge>
+                          )}
+                        </div>
                       </div>
                       <div>
                         <Label>Role</Label>
@@ -497,30 +730,18 @@ export default function UsersPage() {
                         <Label>Status</Label>
                         <div>{getStatusBadge(selectedUser.status)}</div>
                       </div>
-                      <div>
-                        <Label>Phone Number</Label>
-                        <p className="font-medium">
-                          {selectedUser.phoneNumber}
-                        </p>
-                      </div>
-                      <div>
-                        <Label>Location</Label>
-                        <p className="font-medium">{selectedUser.location}</p>
-                      </div>
-                      {selectedUser.companySize && (
+                      {selectedUser.organization && (
                         <div>
-                          <Label>Company Size</Label>
+                          <Label>Organization</Label>
                           <p className="font-medium">
-                            {selectedUser.companySize}
+                            {selectedUser.organization}
                           </p>
                         </div>
                       )}
-                      {selectedUser.institutionType && (
+                      {selectedUser.country && (
                         <div>
-                          <Label>Institution Type</Label>
-                          <p className="font-medium">
-                            {selectedUser.institutionType}
-                          </p>
+                          <Label>Country</Label>
+                          <p className="font-medium">{selectedUser.country}</p>
                         </div>
                       )}
                     </div>
@@ -530,44 +751,33 @@ export default function UsersPage() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
                         <Label>Join Date</Label>
-                        <p className="font-medium">{selectedUser.joinDate}</p>
-                      </div>
-                      <div>
-                        <Label>Last Active</Label>
-                        <p className="font-medium">{selectedUser.lastActive}</p>
-                      </div>
-                      <div>
-                        <Label>Total Verifications</Label>
                         <p className="font-medium">
-                          {selectedUser.verificationsCount}
+                          {formatDate(selectedUser.createdAt)}
+                        </p>
+                      </div>
+                      <div>
+                        <Label>Last Login</Label>
+                        <p className="font-medium">
+                          {selectedUser.lastLoginAt
+                            ? formatDate(selectedUser.lastLoginAt)
+                            : "Never"}
                         </p>
                       </div>
                       <div>
                         <Label>Account Status</Label>
                         <div>{getStatusBadge(selectedUser.status)}</div>
                       </div>
-                    </div>
-                  </TabsContent>
-
-                  <TabsContent value="billing" className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
-                        <Label>Subscription Plan</Label>
-                        <div>{getPlanBadge(selectedUser.subscriptionPlan)}</div>
-                      </div>
-                      <div>
-                        <Label>Billing Status</Label>
-                        <p className="font-medium">Current</p>
-                      </div>
-                      <div>
-                        <Label>Monthly Usage</Label>
-                        <p className="font-medium">
-                          {selectedUser.verificationsCount} verifications
-                        </p>
-                      </div>
-                      <div>
-                        <Label>Next Billing Date</Label>
-                        <p className="font-medium">February 15, 2024</p>
+                        <Label>Email Status</Label>
+                        <div>
+                          {selectedUser.emailVerified ? (
+                            <Badge className="bg-green-100 text-green-800">
+                              Verified
+                            </Badge>
+                          ) : (
+                            <Badge variant="secondary">Not Verified</Badge>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </TabsContent>
@@ -576,7 +786,6 @@ export default function UsersPage() {
             </DialogContent>
           </Dialog>
 
-          {/* Action Confirmation Dialog */}
           <Dialog open={isActionOpen} onOpenChange={setIsActionOpen}>
             <DialogContent>
               <DialogHeader>
@@ -599,20 +808,165 @@ export default function UsersPage() {
               </DialogHeader>
               {selectedUser && (
                 <div className="space-y-4">
-                  <div className="p-4 bg-muted rounded-lg">
-                    <h4 className="font-medium">{selectedUser.name}</h4>
-                    <p className="text-sm text-muted-foreground">
-                      {selectedUser.email}
-                    </p>
-                    <div className="flex items-center space-x-2 mt-2">
-                      {getRoleBadge(selectedUser.role)}
-                      {getStatusBadge(selectedUser.status)}
+                  {actionType === "edit" ? (
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="firstName">First Name</Label>
+                          <Input
+                            id="firstName"
+                            value={selectedUser.firstName}
+                            onChange={(e) =>
+                              setSelectedUser({
+                                ...selectedUser,
+                                firstName: e.target.value,
+                              })
+                            }
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="lastName">Last Name</Label>
+                          <Input
+                            id="lastName"
+                            value={selectedUser.lastName}
+                            onChange={(e) =>
+                              setSelectedUser({
+                                ...selectedUser,
+                                lastName: e.target.value,
+                              })
+                            }
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="email">Email Address</Label>
+                        <Input
+                          id="email"
+                          type="email"
+                          value={selectedUser.email}
+                          onChange={(e) =>
+                            setSelectedUser({
+                              ...selectedUser,
+                              email: e.target.value,
+                            })
+                          }
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="role">Role</Label>
+                          <Select
+                            value={selectedUser.role}
+                            onValueChange={(value) =>
+                              setSelectedUser({
+                                ...selectedUser,
+                                role: value as User["role"],
+                              })
+                            }
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="user">User</SelectItem>
+                              <SelectItem value="institution_admin">
+                                Institution Admin
+                              </SelectItem>
+                              <SelectItem value="employer">Employer</SelectItem>
+                              <SelectItem value="super_admin">
+                                Super Admin
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="status">Status</Label>
+                          <Select
+                            value={selectedUser.status}
+                            onValueChange={(value) =>
+                              setSelectedUser({
+                                ...selectedUser,
+                                status: value as User["status"],
+                              })
+                            }
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="active">Active</SelectItem>
+                              <SelectItem value="inactive">Inactive</SelectItem>
+                              <SelectItem value="suspended">
+                                Suspended
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="organization">
+                          Organization (Optional)
+                        </Label>
+                        <Input
+                          id="organization"
+                          value={selectedUser.organization || ""}
+                          onChange={(e) =>
+                            setSelectedUser({
+                              ...selectedUser,
+                              organization: e.target.value,
+                            })
+                          }
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="country">Country (Optional)</Label>
+                        <Input
+                          id="country"
+                          value={selectedUser.country || ""}
+                          onChange={(e) =>
+                            setSelectedUser({
+                              ...selectedUser,
+                              country: e.target.value,
+                            })
+                          }
+                        />
+                      </div>
                     </div>
-                  </div>
+                  ) : (
+                    <div className="p-4 bg-muted rounded-lg">
+                      <h4 className="font-medium">{`${selectedUser.firstName} ${selectedUser.lastName}`}</h4>
+                      <p className="text-sm text-muted-foreground">
+                        {selectedUser.email}
+                      </p>
+                      <div className="flex items-center space-x-2 mt-2">
+                        {getRoleBadge(selectedUser.role)}
+                        {getStatusBadge(selectedUser.status)}
+                      </div>
+                    </div>
+                  )}
+
+                  {(actionType === "suspend" || actionType === "activate") && (
+                    <div className="space-y-2">
+                      <Label htmlFor="reason">Reason (optional)</Label>
+                      <Textarea
+                        id="reason"
+                        placeholder="Enter reason for this action..."
+                        value={actionReason}
+                        onChange={(e) => setActionReason(e.target.value)}
+                      />
+                    </div>
+                  )}
+
                   <div className="flex justify-end space-x-2">
                     <Button
                       variant="outline"
                       onClick={() => setIsActionOpen(false)}
+                      disabled={actionLoading}
                     >
                       Cancel
                     </Button>
@@ -622,11 +976,12 @@ export default function UsersPage() {
                           ? "bg-red-600 hover:bg-red-700"
                           : ""
                       }
-                      onClick={() => {
-                        console.log(`${actionType} user:`, selectedUser.id);
-                        setIsActionOpen(false);
-                      }}
+                      onClick={executeUserAction}
+                      disabled={actionLoading}
                     >
+                      {actionLoading && (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      )}
                       {actionType === "suspend" && "Suspend User"}
                       {actionType === "activate" && "Activate User"}
                       {actionType === "delete" && "Delete User"}

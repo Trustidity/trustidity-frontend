@@ -1,17 +1,11 @@
-"use client";
+"use client"
 
-import { ProtectedRoute } from "@/components/auth/protected-route";
-import { DashboardLayout } from "@/components/dashboard/dashboard-layout";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { ProtectedRoute } from "@/components/auth/protected-route"
+import { DashboardLayout } from "@/components/dashboard/dashboard-layout"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import {
   FileText,
   Shield,
@@ -24,225 +18,162 @@ import {
   Building,
   DollarSign,
   RefreshCw,
-} from "lucide-react";
-import { useState } from "react";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+} from "lucide-react"
+import { useState, useEffect } from "react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { useApi } from "@/hooks/use-api"
+import { useToast } from "@/hooks/use-toast"
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: Shield },
   { name: "User Management", href: "/dashboard/users", icon: Users },
   { name: "Institutions", href: "/dashboard/institutions", icon: Building },
   { name: "Pricing", href: "/dashboard/pricing", icon: DollarSign },
-  {
-    name: "System Logs",
-    href: "/dashboard/logs",
-    icon: FileText,
-    current: true,
-  },
-];
+  { name: "System Logs", href: "/dashboard/logs", icon: FileText, current: true },
+]
 
-const systemLogs = [
-  {
-    id: "1",
-    timestamp: "2024-01-25 14:30:25",
-    level: "info",
-    category: "authentication",
-    message: "User login successful",
-    details:
-      "User john.smith@email.com logged in successfully from IP 192.168.1.100",
-    userId: "user_123",
-    userEmail: "john.smith@email.com",
-    ipAddress: "192.168.1.100",
-    userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-  },
-  {
-    id: "2",
-    timestamp: "2024-01-25 14:28:15",
-    level: "warning",
-    category: "verification",
-    message: "Multiple verification attempts detected",
-    details:
-      "User attempted to verify the same document 5 times within 10 minutes",
-    userId: "user_456",
-    userEmail: "suspicious@email.com",
-    ipAddress: "203.0.113.45",
-    userAgent: "Mozilla/5.0 (Linux; Android 10; SM-G975F)",
-  },
-  {
-    id: "3",
-    timestamp: "2024-01-25 14:25:10",
-    level: "error",
-    category: "system",
-    message: "Database connection timeout",
-    details:
-      "Connection to primary database timed out after 30 seconds. Failover to secondary database initiated.",
-    ipAddress: "10.0.0.1",
-    errorCode: "DB_TIMEOUT_001",
-  },
-  {
-    id: "4",
-    timestamp: "2024-01-25 14:20:45",
-    level: "info",
-    category: "verification",
-    message: "Document verification completed",
-    details:
-      "Bachelor's degree verification completed for student Alice Johnson",
-    userId: "inst_789",
-    userEmail: "admin@unn.edu.ng",
-    referenceNumber: "TRU-2024-001234",
-    documentType: "Bachelor's Degree",
-  },
-  {
-    id: "5",
-    timestamp: "2024-01-25 14:18:30",
-    level: "warning",
-    category: "security",
-    message: "Failed login attempt",
-    details: "Multiple failed login attempts detected from IP address",
-    ipAddress: "198.51.100.42",
-    attemptCount: 5,
-    userAgent: "curl/7.68.0",
-  },
-  {
-    id: "6",
-    timestamp: "2024-01-25 14:15:20",
-    level: "info",
-    category: "admin",
-    message: "User account suspended",
-    details: "Admin suspended user account due to suspicious activity",
-    adminId: "admin_001",
-    adminEmail: "admin@trustidity.com",
-    targetUserId: "user_789",
-    targetUserEmail: "suspicious.user@email.com",
-    reason: "Suspicious verification patterns detected",
-  },
-  {
-    id: "7",
-    timestamp: "2024-01-25 14:12:15",
-    level: "error",
-    category: "payment",
-    message: "Payment processing failed",
-    details: "Credit card payment failed for subscription renewal",
-    userId: "user_321",
-    userEmail: "customer@company.com",
-    amount: "₦50,000",
-    errorCode: "PAYMENT_DECLINED",
-  },
-  {
-    id: "8",
-    timestamp: "2024-01-25 14:10:05",
-    level: "info",
-    category: "institution",
-    message: "New institution registered",
-    details: "New institution completed registration process",
-    institutionName: "Lagos State University",
-    institutionEmail: "admin@lasu.edu.ng",
-    institutionType: "University",
-  },
-];
+interface AuditLog {
+  id: string
+  action: string
+  entityType: string
+  entityId?: string
+  userId?: string
+  userEmail?: string
+  oldValues?: Record<string, any>
+  newValues?: Record<string, any>
+  ipAddress?: string
+  userAgent?: string
+  description?: string
+  createdAt: string
+}
 
 export default function LogsPage() {
-  const [searchQuery, setSearchQuery] = useState("");
-  const [levelFilter, setLevelFilter] = useState("all");
-  const [categoryFilter, setCategoryFilter] = useState("all");
-  const [timeFilter, setTimeFilter] = useState("all");
+  const [logs, setLogs] = useState<AuditLog[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState("")
+  const [actionFilter, setActionFilter] = useState("all")
+  const [entityTypeFilter, setEntityTypeFilter] = useState("all")
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalLogs, setTotalLogs] = useState(0)
 
-  const filteredLogs = systemLogs.filter((log) => {
-    const matchesSearch =
-      log.message.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      log.details.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (log.userEmail &&
-        log.userEmail.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (log.ipAddress && log.ipAddress.includes(searchQuery));
+  const api = useApi()
+  const { toast } = useToast()
 
-    const matchesLevel = levelFilter === "all" || log.level === levelFilter;
-    const matchesCategory =
-      categoryFilter === "all" || log.category === categoryFilter;
+  const fetchLogs = async (page = 1) => {
+    try {
+      setLoading(true)
+      setError(null)
 
-    let matchesTime = true;
-    if (timeFilter !== "all") {
-      const logTime = new Date(log.timestamp);
-      const now = new Date();
-      const hoursDiff = Math.floor(
-        (now.getTime() - logTime.getTime()) / (1000 * 60 * 60)
-      );
+      const filters: any = {}
+      if (actionFilter !== "all") filters.action = actionFilter
+      if (entityTypeFilter !== "all") filters.entityType = entityTypeFilter
 
-      switch (timeFilter) {
-        case "1hour":
-          matchesTime = hoursDiff <= 1;
-          break;
-        case "24hours":
-          matchesTime = hoursDiff <= 24;
-          break;
-        case "7days":
-          matchesTime = hoursDiff <= 168; // 7 * 24
-          break;
+      const response = await api.getAuditLogs(page, 50, filters)
+
+      if (!response.success) {
+        throw new Error(response.error || "Failed to fetch audit logs")
       }
+
+      if (!response.data) {
+        throw new Error("Audit logs data is missing")
+      }
+
+      setLogs(response.data.logs)
+      setTotalPages(response.data.pagination.pages)
+      setTotalLogs(response.data.pagination.total)
+      setCurrentPage(page)
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Failed to load system logs"
+      setError(errorMessage)
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
     }
+  }
 
-    return matchesSearch && matchesLevel && matchesCategory && matchesTime;
-  });
+  useEffect(() => {
+    fetchLogs(1)
+  }, [actionFilter, entityTypeFilter])
 
-  const getLevelBadge = (level: string) => {
-    switch (level) {
-      case "info":
-        return <Badge className="bg-blue-100 text-blue-800">Info</Badge>;
-      case "warning":
-        return <Badge className="bg-yellow-100 text-yellow-800">Warning</Badge>;
-      case "error":
-        return <Badge className="bg-red-100 text-red-800">Error</Badge>;
-      case "debug":
-        return <Badge className="bg-gray-100 text-gray-800">Debug</Badge>;
-      default:
-        return <Badge variant="secondary">{level}</Badge>;
-    }
-  };
+  const filteredLogs = logs.filter((log) => {
+    if (!searchQuery) return true
 
-  const getCategoryBadge = (category: string) => {
-    switch (category) {
-      case "authentication":
-        return <Badge variant="outline">Authentication</Badge>;
-      case "verification":
-        return (
-          <Badge className="bg-green-100 text-green-800">Verification</Badge>
-        );
-      case "system":
-        return <Badge className="bg-purple-100 text-purple-800">System</Badge>;
-      case "security":
-        return <Badge className="bg-red-100 text-red-800">Security</Badge>;
-      case "admin":
-        return <Badge className="bg-blue-100 text-blue-800">Admin</Badge>;
+    const searchLower = searchQuery.toLowerCase()
+    return (
+      log.description?.toLowerCase().includes(searchLower) ||
+      log.userEmail?.toLowerCase().includes(searchLower) ||
+      log.ipAddress?.includes(searchQuery) ||
+      log.entityType.toLowerCase().includes(searchLower) ||
+      log.action.toLowerCase().includes(searchLower)
+    )
+  })
+
+  const getActionBadge = (action: string) => {
+    switch (action.toLowerCase()) {
+      case "create":
+        return <Badge className="bg-green-100 text-green-800">Create</Badge>
+      case "update":
+        return <Badge className="bg-blue-100 text-blue-800">Update</Badge>
+      case "delete":
+        return <Badge className="bg-red-100 text-red-800">Delete</Badge>
+      case "login":
+        return <Badge className="bg-purple-100 text-purple-800">Login</Badge>
+      case "logout":
+        return <Badge className="bg-gray-100 text-gray-800">Logout</Badge>
+      case "verify":
+        return <Badge className="bg-yellow-100 text-yellow-800">Verify</Badge>
       case "payment":
-        return <Badge className="bg-orange-100 text-orange-800">Payment</Badge>;
+        return <Badge className="bg-orange-100 text-orange-800">Payment</Badge>
+      default:
+        return <Badge variant="secondary">{action}</Badge>
+    }
+  }
+
+  const getEntityTypeBadge = (entityType: string) => {
+    switch (entityType.toLowerCase()) {
+      case "user":
+        return <Badge variant="outline">User</Badge>
       case "institution":
-        return <Badge className="bg-teal-100 text-teal-800">Institution</Badge>;
+        return <Badge className="bg-teal-100 text-teal-800">Institution</Badge>
+      case "verification":
+        return <Badge className="bg-green-100 text-green-800">Verification</Badge>
+      case "systemsettings":
+        return <Badge className="bg-purple-100 text-purple-800">System</Badge>
+      case "credential":
+        return <Badge className="bg-blue-100 text-blue-800">Credential</Badge>
       default:
-        return <Badge variant="secondary">{category}</Badge>;
+        return <Badge variant="secondary">{entityType}</Badge>
     }
-  };
+  }
 
-  const getLevelIcon = (level: string) => {
-    switch (level) {
-      case "info":
-        return <Info className="h-4 w-4 text-blue-600" />;
-      case "warning":
-        return <AlertTriangle className="h-4 w-4 text-yellow-600" />;
-      case "error":
-        return <AlertTriangle className="h-4 w-4 text-red-600" />;
-      case "debug":
-        return <CheckCircle className="h-4 w-4 text-gray-600" />;
+  const getActionIcon = (action: string) => {
+    switch (action.toLowerCase()) {
+      case "create":
+        return <CheckCircle className="h-4 w-4 text-green-600" />
+      case "update":
+        return <Info className="h-4 w-4 text-blue-600" />
+      case "delete":
+        return <AlertTriangle className="h-4 w-4 text-red-600" />
+      case "login":
+      case "logout":
+        return <Shield className="h-4 w-4 text-purple-600" />
       default:
-        return <FileText className="h-4 w-4" />;
+        return <FileText className="h-4 w-4" />
     }
-  };
+  }
 
-  const categories = [...new Set(systemLogs.map((log) => log.category))];
+  const formatTimestamp = (timestamp: string) => {
+    return new Date(timestamp).toLocaleString()
+  }
+
+  const uniqueActions = [...new Set(logs.map((log) => log.action))]
+  const uniqueEntityTypes = [...new Set(logs.map((log) => log.entityType))]
 
   return (
     <ProtectedRoute allowedRoles={["admin", "super_admin"]}>
@@ -251,15 +182,11 @@ export default function LogsPage() {
           {/* Header */}
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-foreground">
-                System Logs
-              </h1>
-              <p className="text-muted-foreground">
-                Monitor system activities, security events, and application logs
-              </p>
+              <h1 className="text-2xl font-bold text-foreground">System Logs</h1>
+              <p className="text-muted-foreground">Monitor system activities, security events, and application logs</p>
             </div>
             <div className="flex gap-2">
-              <Button variant="outline">
+              <Button variant="outline" onClick={() => fetchLogs(currentPage)}>
                 <RefreshCw className="mr-2 h-4 w-4" />
                 Refresh
               </Button>
@@ -274,50 +201,43 @@ export default function LogsPage() {
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
-                  Total Logs (24h)
-                </CardTitle>
+                <CardTitle className="text-sm font-medium">Total Logs</CardTitle>
                 <FileText className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{systemLogs.length}</div>
+                <div className="text-2xl font-bold">{totalLogs}</div>
               </CardContent>
             </Card>
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Errors</CardTitle>
-                <AlertTriangle className="h-4 w-4 text-red-600" />
+                <CardTitle className="text-sm font-medium">Create Actions</CardTitle>
+                <CheckCircle className="h-4 w-4 text-green-600" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-red-600">
-                  {systemLogs.filter((log) => log.level === "error").length}
+                <div className="text-2xl font-bold text-green-600">
+                  {logs.filter((log) => log.action.toLowerCase() === "create").length}
                 </div>
               </CardContent>
             </Card>
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Warnings</CardTitle>
-                <AlertTriangle className="h-4 w-4 text-yellow-600" />
+                <CardTitle className="text-sm font-medium">Updates</CardTitle>
+                <Info className="h-4 w-4 text-blue-600" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-yellow-600">
-                  {systemLogs.filter((log) => log.level === "warning").length}
+                <div className="text-2xl font-bold text-blue-600">
+                  {logs.filter((log) => log.action.toLowerCase() === "update").length}
                 </div>
               </CardContent>
             </Card>
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
-                  Security Events
-                </CardTitle>
+                <CardTitle className="text-sm font-medium">Security Events</CardTitle>
                 <Shield className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {
-                    systemLogs.filter((log) => log.category === "security")
-                      .length
-                  }
+                  {logs.filter((log) => ["login", "logout"].includes(log.action.toLowerCase())).length}
                 </div>
               </CardContent>
             </Card>
@@ -334,7 +254,7 @@ export default function LogsPage() {
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
-                      placeholder="Search by message, email, IP address, or details..."
+                      placeholder="Search by description, email, IP address, or entity type..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       className="pl-10"
@@ -342,43 +262,30 @@ export default function LogsPage() {
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  <Select value={levelFilter} onValueChange={setLevelFilter}>
+                  <Select value={actionFilter} onValueChange={setActionFilter}>
                     <SelectTrigger className="w-32">
-                      <SelectValue placeholder="Level" />
+                      <SelectValue placeholder="Action" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">All Levels</SelectItem>
-                      <SelectItem value="info">Info</SelectItem>
-                      <SelectItem value="warning">Warning</SelectItem>
-                      <SelectItem value="error">Error</SelectItem>
-                      <SelectItem value="debug">Debug</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Select
-                    value={categoryFilter}
-                    onValueChange={setCategoryFilter}
-                  >
-                    <SelectTrigger className="w-40">
-                      <SelectValue placeholder="Category" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Categories</SelectItem>
-                      {categories.map((category) => (
-                        <SelectItem key={category} value={category}>
-                          {category.charAt(0).toUpperCase() + category.slice(1)}
+                      <SelectItem value="all">All Actions</SelectItem>
+                      {uniqueActions.map((action) => (
+                        <SelectItem key={action} value={action}>
+                          {action.charAt(0).toUpperCase() + action.slice(1)}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
-                  <Select value={timeFilter} onValueChange={setTimeFilter}>
-                    <SelectTrigger className="w-32">
-                      <SelectValue placeholder="Time" />
+                  <Select value={entityTypeFilter} onValueChange={setEntityTypeFilter}>
+                    <SelectTrigger className="w-40">
+                      <SelectValue placeholder="Entity Type" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">All Time</SelectItem>
-                      <SelectItem value="1hour">Last Hour</SelectItem>
-                      <SelectItem value="24hours">Last 24 Hours</SelectItem>
-                      <SelectItem value="7days">Last 7 Days</SelectItem>
+                      <SelectItem value="all">All Types</SelectItem>
+                      {uniqueEntityTypes.map((entityType) => (
+                        <SelectItem key={entityType} value={entityType}>
+                          {entityType.charAt(0).toUpperCase() + entityType.slice(1)}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -390,155 +297,135 @@ export default function LogsPage() {
           <Card>
             <CardHeader>
               <CardTitle>System Activity Logs</CardTitle>
-              <CardDescription>
-                Real-time system events and activities
-              </CardDescription>
+              <CardDescription>Real-time system events and activities</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {filteredLogs.map((log) => (
-                  <div
-                    key={log.id}
-                    className="border rounded-lg p-4 hover:bg-muted/50 transition-colors"
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-start space-x-4 flex-1">
-                        {getLevelIcon(log.level)}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center space-x-2 mb-2">
-                            <h3 className="font-medium text-foreground">
-                              {log.message}
-                            </h3>
-                            {getLevelBadge(log.level)}
-                            {getCategoryBadge(log.category)}
-                          </div>
-                          <p className="text-sm text-muted-foreground mb-2">
-                            {log.details}
-                          </p>
-                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 text-xs text-muted-foreground">
-                            <div>
-                              <span className="font-medium">Timestamp:</span>{" "}
-                              {log.timestamp}
-                            </div>
-                            {log.userEmail && (
-                              <div>
-                                <span className="font-medium">User:</span>{" "}
-                                {log.userEmail}
-                              </div>
-                            )}
-                            {log.ipAddress && (
-                              <div>
-                                <span className="font-medium">IP Address:</span>{" "}
-                                {log.ipAddress}
-                              </div>
-                            )}
-                            {log.referenceNumber && (
-                              <div>
-                                <span className="font-medium">Reference:</span>{" "}
-                                {log.referenceNumber}
-                              </div>
-                            )}
-                            {log.errorCode && (
-                              <div>
-                                <span className="font-medium">Error Code:</span>{" "}
-                                {log.errorCode}
-                              </div>
-                            )}
-                            {log.amount && (
-                              <div>
-                                <span className="font-medium">Amount:</span>{" "}
-                                {log.amount}
-                              </div>
-                            )}
-                            {log.institutionName && (
-                              <div>
-                                <span className="font-medium">
-                                  Institution:
-                                </span>{" "}
-                                {log.institutionName}
-                              </div>
-                            )}
-                            {log.attemptCount && (
-                              <div>
-                                <span className="font-medium">Attempts:</span>{" "}
-                                {log.attemptCount}
-                              </div>
-                            )}
-                          </div>
-                          {log.userAgent && (
-                            <div className="mt-2 text-xs text-muted-foreground">
-                              <span className="font-medium">User Agent:</span>{" "}
-                              {log.userAgent}
-                            </div>
-                          )}
-                          {log.reason && (
-                            <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-sm text-yellow-800">
-                              <strong>Reason:</strong> {log.reason}
-                            </div>
-                          )}
+              {loading ? (
+                <div className="space-y-4">
+                  {[...Array(5)].map((_, i) => (
+                    <div key={i} className="border rounded-lg p-4 animate-pulse">
+                      <div className="flex items-start space-x-4">
+                        <div className="w-4 h-4 bg-muted rounded"></div>
+                        <div className="flex-1 space-y-2">
+                          <div className="h-4 bg-muted rounded w-3/4"></div>
+                          <div className="h-3 bg-muted rounded w-1/2"></div>
+                          <div className="h-3 bg-muted rounded w-2/3"></div>
                         </div>
                       </div>
-                      <div className="flex items-center space-x-2 ml-4">
-                        <Button size="sm" variant="outline">
-                          View Details
-                        </Button>
+                    </div>
+                  ))}
+                </div>
+              ) : error ? (
+                <div className="text-center py-12">
+                  <AlertTriangle className="h-12 w-12 text-red-600 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-foreground mb-2">Failed to Load Logs</h3>
+                  <p className="text-muted-foreground mb-4">{error}</p>
+                  <Button onClick={() => fetchLogs(currentPage)}>Try Again</Button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {filteredLogs.map((log) => (
+                    <div key={log.id} className="border rounded-lg p-4 hover:bg-muted/50 transition-colors">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-start space-x-4 flex-1">
+                          {getActionIcon(log.action)}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center space-x-2 mb-2">
+                              <h3 className="font-medium text-foreground">
+                                {log.description || `${log.action} ${log.entityType}`}
+                              </h3>
+                              {getActionBadge(log.action)}
+                              {getEntityTypeBadge(log.entityType)}
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 text-xs text-muted-foreground">
+                              <div>
+                                <span className="font-medium">Timestamp:</span> {formatTimestamp(log.createdAt)}
+                              </div>
+                              {log.userEmail && (
+                                <div>
+                                  <span className="font-medium">User:</span> {log.userEmail}
+                                </div>
+                              )}
+                              {log.ipAddress && (
+                                <div>
+                                  <span className="font-medium">IP Address:</span> {log.ipAddress}
+                                </div>
+                              )}
+                              {log.entityId && (
+                                <div>
+                                  <span className="font-medium">Entity ID:</span> {log.entityId}
+                                </div>
+                              )}
+                            </div>
+                            {log.userAgent && (
+                              <div className="mt-2 text-xs text-muted-foreground">
+                                <span className="font-medium">User Agent:</span> {log.userAgent}
+                              </div>
+                            )}
+                            {(log.oldValues || log.newValues) && (
+                              <div className="mt-2 p-2 bg-muted rounded text-sm">
+                                {log.oldValues && (
+                                  <div className="mb-1">
+                                    <strong>Old:</strong> {JSON.stringify(log.oldValues, null, 2)}
+                                  </div>
+                                )}
+                                {log.newValues && (
+                                  <div>
+                                    <strong>New:</strong> {JSON.stringify(log.newValues, null, 2)}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
 
-              {filteredLogs.length === 0 && (
+              {!loading && !error && filteredLogs.length === 0 && (
                 <div className="text-center py-12">
                   <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-foreground mb-2">
-                    No logs found
-                  </h3>
+                  <h3 className="text-lg font-medium text-foreground mb-2">No logs found</h3>
                   <p className="text-muted-foreground">
-                    {searchQuery ||
-                    levelFilter !== "all" ||
-                    categoryFilter !== "all" ||
-                    timeFilter !== "all"
+                    {searchQuery || actionFilter !== "all" || entityTypeFilter !== "all"
                       ? "Try adjusting your search or filter criteria"
                       : "No system logs available"}
                   </p>
                 </div>
               )}
+
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between mt-6">
+                  <div className="text-sm text-muted-foreground">
+                    Showing {(currentPage - 1) * 50 + 1} to {Math.min(currentPage * 50, totalLogs)} of {totalLogs} logs
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => fetchLogs(currentPage - 1)}
+                      disabled={currentPage === 1}
+                    >
+                      Previous
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => fetchLogs(currentPage + 1)}
+                      disabled={currentPage === totalPages}
+                    >
+                      Next
+                    </Button>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
-
-          {/* Log Summary */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Log Volume</CardTitle>
-                <CardDescription>
-                  Total number of logs over time
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {/* Placeholder for log volume chart */}
-                <div className="h-40 bg-muted rounded-md flex items-center justify-center text-muted-foreground">
-                  Log Volume Chart
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Log Distribution</CardTitle>
-                <CardDescription>Distribution of log levels</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {/* Placeholder for log distribution chart */}
-                <div className="h-40 bg-muted rounded-md flex items-center justify-center text-muted-foreground">
-                  Log Distribution Chart
-                </div>
-              </CardContent>
-            </Card>
-          </div>
         </div>
       </DashboardLayout>
     </ProtectedRoute>
-  );
+  )
 }

@@ -6,7 +6,10 @@ export interface User {
   lastName: string;
   phoneNumber?: string;
   organization?: string;
-  role: "user" | "institution_admin" | "super_admin";
+  institutionId?: string;
+  companyId?: string;
+  country?: string;
+  role: "user" | "institution_admin" | "employer" | "super_admin";
   status: "active" | "inactive" | "suspended";
   emailVerified: boolean;
   createdAt: string;
@@ -66,6 +69,7 @@ export interface Institution {
   id: string;
   name: string;
   type: "university" | "college" | "certification_body" | "government";
+  status: "active" | "inactive" | "pending" | "suspended";
   country: string;
   isVerified: boolean;
   contactEmail: string;

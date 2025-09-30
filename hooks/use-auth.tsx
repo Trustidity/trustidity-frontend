@@ -40,34 +40,84 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   });
   const api = useApi();
 
+  const fetchCurrentUser = async (token: string) => {
+    try {
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/auth/me`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch user data");
+      }
+
+      const data = await response.json();
+
+      if (data.success && data.data) {
+        return data.data;
+      }
+
+      throw new Error("Invalid user data response");
+    } catch (error) {
+      console.error("[v0] Failed to fetch current user:", error);
+      throw error;
+    }
+  };
+
   useEffect(() => {
-    const token = getToken();
-    if (token && !isTokenExpired(token)) {
+    const initializeAuth = async () => {
+      console.log("[v0] Initializing auth...");
+      const token = getToken();
+
+      if (!token) {
+        console.log("[v0] No token found");
+        setAuth({ user: null, token: null, isLoading: false });
+        return;
+      }
+
+      if (isTokenExpired(token)) {
+        console.log("[v0] Token expired, removing...");
+        removeToken();
+        setAuth({ user: null, token: null, isLoading: false });
+        return;
+      }
+
       try {
-        const payload = JSON.parse(atob(token.split(".")[1]));
+        console.log("[v0] Token valid, fetching user data...");
+        const userData = await fetchCurrentUser(token);
+
+        console.log("[v0] User data fetched successfully:", userData);
         setAuth({
           user: {
-            id: payload.userId,
-            email: payload.email,
-            firstName: payload.firstName,
-            lastName: payload.lastName,
-            phoneNumber: payload.phoneNumber,
-            organization: payload.organization,
-            role: payload.role,
-            status: payload.status || "active",
-            emailVerified: payload.emailVerified || false,
-            createdAt: payload.createdAt || new Date().toISOString(),
+            id: userData.id,
+            email: userData.email,
+            firstName: userData.firstName,
+            lastName: userData.lastName,
+            phoneNumber: userData.phoneNumber,
+            organization: userData.organization,
+            institutionId: userData.institutionId || null,
+            companyId: userData.companyId || null,
+            role: userData.role,
+            status: userData.status || "active",
+            emailVerified: userData.emailVerified || false,
+            createdAt: userData.createdAt || new Date().toISOString(),
           },
           token,
           isLoading: false,
         });
-      } catch {
+      } catch (error) {
+        console.error("[v0] Auth initialization failed:", error);
         removeToken();
         setAuth({ user: null, token: null, isLoading: false });
       }
-    } else {
-      setAuth({ user: null, token: null, isLoading: false });
-    }
+    };
+
+    initializeAuth();
   }, []);
 
   const login = async (email: string, password: string) => {
@@ -98,6 +148,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         lastName: user.lastName,
         phoneNumber: user.phoneNumber,
         organization: user.organization,
+        institutionId: user.institutionId,
+        companyId: user.companyId,
         role: user.role,
         status: user.status,
         emailVerified: user.emailVerified,
@@ -148,6 +200,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         lastName: user.lastName,
         phoneNumber: user.phoneNumber,
         organization: user.organization,
+        // institutionId: user.institutionId || "",
+        // companyId: user.companyId || "",
         role: user.role,
         status: user.status,
         emailVerified: user.emailVerified,
@@ -159,8 +213,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const logout = () => {
+    console.log("[v0] Logging out...");
     removeToken();
     setAuth({ user: null, token: null, isLoading: false });
+    if (typeof window !== "undefined") {
+      // Clear any additional session data if needed
+      sessionStorage.clear();
+    }
   };
 
   return (

@@ -1,12 +1,18 @@
-"use client"
+"use client";
 
-import { ProtectedRoute } from "@/components/auth/protected-route"
-import { DashboardLayout } from "@/components/dashboard/dashboard-layout"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+import { ProtectedRoute } from "@/components/auth/protected-route";
+import { DashboardLayout } from "@/components/dashboard/dashboard-layout";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Building,
   Shield,
@@ -21,9 +27,15 @@ import {
   FileText,
   Loader2,
   RefreshCw,
-} from "lucide-react"
-import { useState, useEffect, useCallback } from "react"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+} from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -31,49 +43,77 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Textarea } from "@/components/ui/textarea"
-import { useInstitution } from "@/hooks/use-institution"
-import type { Institution } from "@/lib/types"
+} from "@/components/ui/dialog";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
+import { useApi } from "@/hooks/use-api";
+import { useToast } from "@/hooks/use-toast";
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: Shield },
   { name: "User Management", href: "/dashboard/users", icon: Users },
-  { name: "Institutions", href: "/dashboard/institutions", icon: Building, current: true },
+  {
+    name: "Institutions",
+    href: "/dashboard/institutions",
+    icon: Building,
+    current: true,
+  },
   { name: "Pricing", href: "/dashboard/pricing", icon: DollarSign },
   { name: "System Logs", href: "/dashboard/logs", icon: FileText },
-]
+];
+
+interface Institution {
+  id: string;
+  name: string;
+  code: string;
+  type: string;
+  status: string;
+  address: string;
+  city: string;
+  state: string;
+  country: string;
+  website?: string;
+  contactEmail: string;
+  contactPhone?: string;
+  description?: string;
+  establishedYear?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface InstitutionStats {
+  totalInstitutions: number;
+  activeInstitutions: number;
+  universities: number;
+  totalStudents: number;
+  pendingApprovals: number;
+}
 
 export default function InstitutionsPage() {
-  const {
-    institutions,
-    institutionStats,
-    loading,
-    error,
-    currentPage,
-    totalPages,
-    fetchInstitutions,
-    createInstitution,
-    deleteInstitution,
-    approveInstitution,
-    getInstitution,
-    refreshInstitutions,
-  } = useInstitution()
-
-  const [searchQuery, setSearchQuery] = useState("")
-  const [typeFilter, setTypeFilter] = useState("all")
-  const [statusFilter, setStatusFilter] = useState("all")
-  const [selectedInstitution, setSelectedInstitution] = useState<Institution | null>(null)
-  const [isDetailsOpen, setIsDetailsOpen] = useState(false)
-  const [isActionOpen, setIsActionOpen] = useState(false)
-  const [actionType, setActionType] = useState("")
-  const [actionReason, setActionReason] = useState("")
-  const [actionLoading, setActionLoading] = useState(false)
-  const [isAddOpen, setIsAddOpen] = useState(false)
-  const [currentPageState, setCurrentPage] = useState(1) // Renamed to avoid conflict with hook's currentPage
-  const [totalPagesState, setTotalPages] = useState(1) // Renamed to avoid conflict with hook's totalPages
+  const [institutions, setInstitutions] = useState<Institution[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [typeFilter, setTypeFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [selectedInstitution, setSelectedInstitution] =
+    useState<Institution | null>(null);
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const [isActionOpen, setIsActionOpen] = useState(false);
+  const [actionType, setActionType] = useState("");
+  const [actionReason, setActionReason] = useState("");
+  const [actionLoading, setActionLoading] = useState(false);
+  const [isAddOpen, setIsAddOpen] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [institutionStats, setInstitutionStats] = useState<InstitutionStats>({
+    totalInstitutions: 0,
+    activeInstitutions: 0,
+    universities: 0,
+    totalStudents: 0,
+    pendingApprovals: 0,
+  });
 
   const [newInstitution, setNewInstitution] = useState({
     name: "",
@@ -87,105 +127,195 @@ export default function InstitutionsPage() {
     website: "",
     establishedYear: "",
     description: "",
-  })
+  });
 
-  type FetchInstitutionsResult = {
-    pagination: {
-      page: number
-      pages: number
-    }
-    // add other properties as needed
-  }
+  const api = useApi();
+  const { toast } = useToast();
 
-  const handleFetchInstitutions = useCallback(
+  const fetchInstitutions = useCallback(
     async (page = 1) => {
-      const filters = {
-        search: searchQuery || undefined,
-        status: statusFilter !== "all" ? statusFilter : undefined,
-        type: typeFilter !== "all" ? typeFilter : undefined,
-      }
-      // fetchInstitutions should return the pagination result for this to work
-      const data: FetchInstitutionsResult | undefined = await fetchInstitutions(page, filters)
-      if (data && data.pagination) {
-        setCurrentPage(data.pagination.page)
-        setTotalPages(data.pagination.pages)
+      try {
+        setLoading(true);
+        setError(null);
+
+        const response = await api.getInstitutions(
+          page,
+          20,
+          searchQuery,
+          statusFilter,
+          typeFilter
+        );
+
+        if (response.success && response.data) {
+          setInstitutions(response.data.institutions);
+          setCurrentPage(response.data.pagination.page);
+          setTotalPages(response.data.pagination.pages);
+
+          // Calculate stats from the institutions data
+          const stats = response.data.institutions.reduce(
+            (acc, institution) => {
+              acc.totalInstitutions++;
+              if (institution.status === "active") acc.activeInstitutions++;
+              if (institution.type.toLowerCase().includes("university"))
+                acc.universities++;
+              if (institution.status === "pending") acc.pendingApprovals++;
+              return acc;
+            },
+            {
+              totalInstitutions: 0,
+              activeInstitutions: 0,
+              universities: 0,
+              totalStudents: 0, // This would need to come from a separate endpoint
+              pendingApprovals: 0,
+            }
+          );
+          setInstitutionStats(stats);
+        } else {
+          setError(response.error || "Failed to fetch institutions");
+          toast({
+            title: "Error",
+            description: response.error || "Failed to fetch institutions",
+            variant: "destructive",
+          });
+        }
+      } catch (err) {
+        const errorMessage =
+          err instanceof Error ? err.message : "An unexpected error occurred";
+        setError(errorMessage);
+        toast({
+          title: "Error",
+          description: errorMessage,
+          variant: "destructive",
+        });
+      } finally {
+        setLoading(false);
       }
     },
-    [fetchInstitutions, searchQuery, statusFilter, typeFilter],
-  )
+    [api, searchQuery, statusFilter, typeFilter, toast]
+  );
 
   useEffect(() => {
-    handleFetchInstitutions(1)
-  }, [handleFetchInstitutions])
+    fetchInstitutions(1);
+  }, [fetchInstitutions]);
 
   useEffect(() => {
     const timeoutId = setTimeout(() => {
       if (searchQuery !== undefined) {
-        handleFetchInstitutions(1)
+        fetchInstitutions(1);
       }
-    }, 500)
+    }, 500);
 
-    return () => clearTimeout(timeoutId)
-  }, [searchQuery, handleFetchInstitutions])
+    return () => clearTimeout(timeoutId);
+  }, [searchQuery, fetchInstitutions]);
 
-  const filteredInstitutions = institutions
+  const filteredInstitutions = institutions.filter((institution) => {
+    const matchesSearch =
+      institution.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      institution.contactEmail
+        .toLowerCase()
+        .includes(searchQuery.toLowerCase()) ||
+      institution.city.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      institution.state.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesType = typeFilter === "all" || institution.type === typeFilter;
+    const matchesStatus =
+      statusFilter === "all" || institution.status === statusFilter;
+    return matchesSearch && matchesType && matchesStatus;
+  });
 
-  const handleInstitutionAction = async (institution: Institution, action: string) => {
-    setSelectedInstitution(institution)
-    setActionType(action)
-    setActionReason("")
-    setIsActionOpen(true)
-  }
+  const handleInstitutionAction = async (
+    institution: Institution,
+    action: string
+  ) => {
+    setSelectedInstitution(institution);
+    setActionType(action);
+    setActionReason("");
+    setIsActionOpen(true);
+  };
 
   const executeInstitutionAction = async () => {
-    if (!selectedInstitution || !actionType) return
+    if (!selectedInstitution || !actionType) return;
 
     try {
-      setActionLoading(true)
-      let success = false
+      setActionLoading(true);
+      let response;
 
       switch (actionType) {
         case "approve":
-          success = await approveInstitution(selectedInstitution.id, "active", actionReason)
-          break
+          response = await api.approveInstitution(
+            selectedInstitution.id,
+            "active",
+            actionReason
+          );
+          break;
         case "suspend":
-          success = await approveInstitution(selectedInstitution.id, "suspended", actionReason)
-          break
+          response = await api.approveInstitution(
+            selectedInstitution.id,
+            "suspended",
+            actionReason
+          );
+          break;
         case "activate":
-          success = await approveInstitution(selectedInstitution.id, "active", actionReason)
-          break
+          response = await api.approveInstitution(
+            selectedInstitution.id,
+            "active",
+            actionReason
+          );
+          break;
         case "delete":
-          success = await deleteInstitution(selectedInstitution.id)
-          break
+          response = await api.deleteInstitution(selectedInstitution.id);
+          break;
         default:
-          throw new Error("Invalid action type")
+          throw new Error("Invalid action type");
       }
 
-      if (success) {
-        setIsActionOpen(false)
-        handleFetchInstitutions(currentPageState) // Refresh current page after action
+      if (response.success) {
+        toast({
+          title: "Success",
+          description:
+            response.message || `Institution ${actionType}d successfully`,
+        });
+        setIsActionOpen(false);
+        fetchInstitutions(currentPage); // Refresh the current page
+      } else {
+        toast({
+          title: "Error",
+          description: response.error || `Failed to ${actionType} institution`,
+          variant: "destructive",
+        });
       }
     } catch (err) {
-      console.error("Action execution error:", err)
-      // Consider adding toast notifications here for user feedback
+      toast({
+        title: "Error",
+        description:
+          err instanceof Error
+            ? err.message
+            : `Failed to ${actionType} institution`,
+        variant: "destructive",
+      });
     } finally {
-      setActionLoading(false)
+      setActionLoading(false);
     }
-  }
+  };
 
   const handleAddInstitution = async () => {
     try {
-      setActionLoading(true)
+      setActionLoading(true);
 
       const institutionData = {
         ...newInstitution,
-        establishedYear: newInstitution.establishedYear ? Number.parseInt(newInstitution.establishedYear) : undefined,
-      }
+        establishedYear: newInstitution.establishedYear
+          ? Number.parseInt(newInstitution.establishedYear)
+          : undefined,
+      };
 
-      const success = await createInstitution(institutionData as any)
+      const response = await api.createInstitution(institutionData);
 
-      if (success) {
-        setIsAddOpen(false)
+      if (response.success) {
+        toast({
+          title: "Success",
+          description: "Institution added successfully",
+        });
+        setIsAddOpen(false);
         setNewInstitution({
           name: "",
           contactEmail: "",
@@ -198,62 +328,87 @@ export default function InstitutionsPage() {
           website: "",
           establishedYear: "",
           description: "",
-        })
-        handleFetchInstitutions(1) // Refresh to show new institution
+        });
+        fetchInstitutions(1); // Refresh to show new institution
+      } else {
+        toast({
+          title: "Error",
+          description: response.error || "Failed to add institution",
+          variant: "destructive",
+        });
       }
     } catch (err) {
-      console.error("Add institution error:", err)
-      // Consider adding toast notifications here for user feedback
+      toast({
+        title: "Error",
+        description:
+          err instanceof Error ? err.message : "Failed to add institution",
+        variant: "destructive",
+      });
     } finally {
-      setActionLoading(false)
+      setActionLoading(false);
     }
-  }
+  };
 
-  const handleViewDetails = async (institution: Institution) => {
-    const freshInstitution = await getInstitution(institution.id)
-    setSelectedInstitution(freshInstitution || institution)
-    setIsDetailsOpen(true)
-  }
+  const handleViewDetails = (institution: Institution) => {
+    setSelectedInstitution(institution);
+    setIsDetailsOpen(true);
+  };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "active":
-        return <Badge className="bg-green-100 text-green-800">Active</Badge>
+        return <Badge className="bg-green-100 text-green-800">Active</Badge>;
       case "pending":
-        return <Badge className="bg-yellow-100 text-yellow-800">Pending Approval</Badge>
+        return (
+          <Badge className="bg-yellow-100 text-yellow-800">
+            Pending Approval
+          </Badge>
+        );
       case "suspended":
-        return <Badge className="bg-red-100 text-red-800">Suspended</Badge>
+        return <Badge className="bg-red-100 text-red-800">Suspended</Badge>;
       case "inactive":
-        return <Badge className="bg-gray-100 text-gray-800">Inactive</Badge>
+        return <Badge className="bg-gray-100 text-gray-800">Inactive</Badge>;
       default:
-        return <Badge variant="secondary">{status}</Badge>
+        return <Badge variant="secondary">{status}</Badge>;
     }
-  }
+  };
 
   const getTypeBadge = (type: string) => {
     switch (type.toLowerCase()) {
       case "university":
-        return <Badge className="bg-purple-100 text-purple-800">University</Badge>
+        return (
+          <Badge className="bg-purple-100 text-purple-800">University</Badge>
+        );
       case "private_university":
-        return <Badge className="bg-blue-100 text-blue-800">Private University</Badge>
+        return (
+          <Badge className="bg-blue-100 text-blue-800">
+            Private University
+          </Badge>
+        );
       case "polytechnic":
-        return <Badge className="bg-green-100 text-green-800">Polytechnic</Badge>
+        return (
+          <Badge className="bg-green-100 text-green-800">Polytechnic</Badge>
+        );
       case "college":
-        return <Badge className="bg-indigo-100 text-indigo-800">College</Badge>
+        return <Badge className="bg-indigo-100 text-indigo-800">College</Badge>;
       case "exam_body":
-        return <Badge className="bg-orange-100 text-orange-800">Examination Body</Badge>
+        return (
+          <Badge className="bg-orange-100 text-orange-800">
+            Examination Body
+          </Badge>
+        );
       default:
-        return <Badge variant="secondary">{type}</Badge>
+        return <Badge variant="secondary">{type}</Badge>;
     }
-  }
+  };
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("en-US", {
       year: "numeric",
       month: "short",
       day: "numeric",
-    })
-  }
+    });
+  };
 
   const institutionTypes = [
     "UNIVERSITY",
@@ -263,7 +418,7 @@ export default function InstitutionsPage() {
     "EXAM_BODY",
     "PROFESSIONAL_BODY",
     "GOVERNMENT_AGENCY",
-  ]
+  ];
 
   if (loading && institutions.length === 0) {
     return (
@@ -274,7 +429,7 @@ export default function InstitutionsPage() {
           </div>
         </DashboardLayout>
       </ProtectedRoute>
-    )
+    );
   }
 
   if (error && institutions.length === 0) {
@@ -285,14 +440,14 @@ export default function InstitutionsPage() {
             <AlertTriangle className="h-12 w-12 text-red-500" />
             <h3 className="text-lg font-medium">Failed to load institutions</h3>
             <p className="text-muted-foreground">{error}</p>
-            <Button onClick={() => handleFetchInstitutions(1)}>
+            <Button onClick={() => fetchInstitutions(1)}>
               <RefreshCw className="h-4 w-4 mr-2" />
               Try Again
             </Button>
           </div>
         </DashboardLayout>
       </ProtectedRoute>
-    )
+    );
   }
 
   return (
@@ -302,11 +457,18 @@ export default function InstitutionsPage() {
           {/* Header */}
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-foreground">Institution Management</h1>
-              <p className="text-muted-foreground">Manage educational institutions and examination bodies</p>
+              <h1 className="text-2xl font-bold text-foreground">
+                Institution Management
+              </h1>
+              <p className="text-muted-foreground">
+                Manage educational institutions and examination bodies
+              </p>
             </div>
             <div className="flex items-center space-x-2">
-              <Button variant="outline" onClick={refreshInstitutions}>
+              <Button
+                variant="outline"
+                onClick={() => fetchInstitutions(currentPage)}
+              >
                 <RefreshCw className="mr-2 h-4 w-4" />
                 Refresh
               </Button>
@@ -320,7 +482,9 @@ export default function InstitutionsPage() {
                 <DialogContent className="max-w-2xl">
                   <DialogHeader>
                     <DialogTitle>Add New Institution</DialogTitle>
-                    <DialogDescription>Register a new educational institution or examination body</DialogDescription>
+                    <DialogDescription>
+                      Register a new educational institution or examination body
+                    </DialogDescription>
                   </DialogHeader>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
@@ -329,7 +493,12 @@ export default function InstitutionsPage() {
                         id="name"
                         placeholder="e.g., University of Lagos"
                         value={newInstitution.name}
-                        onChange={(e) => setNewInstitution({ ...newInstitution, name: e.target.value })}
+                        onChange={(e) =>
+                          setNewInstitution({
+                            ...newInstitution,
+                            name: e.target.value,
+                          })
+                        }
                       />
                     </div>
                     <div>
@@ -339,14 +508,21 @@ export default function InstitutionsPage() {
                         type="email"
                         placeholder="admin@institution.edu.ng"
                         value={newInstitution.contactEmail}
-                        onChange={(e) => setNewInstitution({ ...newInstitution, contactEmail: e.target.value })}
+                        onChange={(e) =>
+                          setNewInstitution({
+                            ...newInstitution,
+                            contactEmail: e.target.value,
+                          })
+                        }
                       />
                     </div>
                     <div>
                       <Label htmlFor="type">Institution Type</Label>
                       <Select
                         value={newInstitution.type}
-                        onValueChange={(value) => setNewInstitution({ ...newInstitution, type: value })}
+                        onValueChange={(value) =>
+                          setNewInstitution({ ...newInstitution, type: value })
+                        }
                       >
                         <SelectTrigger>
                           <SelectValue placeholder="Select type" />
@@ -366,7 +542,12 @@ export default function InstitutionsPage() {
                         id="address"
                         placeholder="Institution address"
                         value={newInstitution.address}
-                        onChange={(e) => setNewInstitution({ ...newInstitution, address: e.target.value })}
+                        onChange={(e) =>
+                          setNewInstitution({
+                            ...newInstitution,
+                            address: e.target.value,
+                          })
+                        }
                       />
                     </div>
                     <div>
@@ -375,7 +556,12 @@ export default function InstitutionsPage() {
                         id="city"
                         placeholder="e.g., Lagos"
                         value={newInstitution.city}
-                        onChange={(e) => setNewInstitution({ ...newInstitution, city: e.target.value })}
+                        onChange={(e) =>
+                          setNewInstitution({
+                            ...newInstitution,
+                            city: e.target.value,
+                          })
+                        }
                       />
                     </div>
                     <div>
@@ -384,7 +570,12 @@ export default function InstitutionsPage() {
                         id="state"
                         placeholder="e.g., Lagos State"
                         value={newInstitution.state}
-                        onChange={(e) => setNewInstitution({ ...newInstitution, state: e.target.value })}
+                        onChange={(e) =>
+                          setNewInstitution({
+                            ...newInstitution,
+                            state: e.target.value,
+                          })
+                        }
                       />
                     </div>
                     <div>
@@ -393,7 +584,12 @@ export default function InstitutionsPage() {
                         id="phone"
                         placeholder="+234 xxx xxx xxxx"
                         value={newInstitution.contactPhone}
-                        onChange={(e) => setNewInstitution({ ...newInstitution, contactPhone: e.target.value })}
+                        onChange={(e) =>
+                          setNewInstitution({
+                            ...newInstitution,
+                            contactPhone: e.target.value,
+                          })
+                        }
                       />
                     </div>
                     <div>
@@ -402,7 +598,12 @@ export default function InstitutionsPage() {
                         id="website"
                         placeholder="https://institution.edu.ng"
                         value={newInstitution.website}
-                        onChange={(e) => setNewInstitution({ ...newInstitution, website: e.target.value })}
+                        onChange={(e) =>
+                          setNewInstitution({
+                            ...newInstitution,
+                            website: e.target.value,
+                          })
+                        }
                       />
                     </div>
                     <div>
@@ -411,7 +612,12 @@ export default function InstitutionsPage() {
                         id="established"
                         placeholder="e.g., 1962"
                         value={newInstitution.establishedYear}
-                        onChange={(e) => setNewInstitution({ ...newInstitution, establishedYear: e.target.value })}
+                        onChange={(e) =>
+                          setNewInstitution({
+                            ...newInstitution,
+                            establishedYear: e.target.value,
+                          })
+                        }
                       />
                     </div>
                     <div className="md:col-span-2">
@@ -420,16 +626,30 @@ export default function InstitutionsPage() {
                         id="description"
                         placeholder="Brief description of the institution"
                         value={newInstitution.description}
-                        onChange={(e) => setNewInstitution({ ...newInstitution, description: e.target.value })}
+                        onChange={(e) =>
+                          setNewInstitution({
+                            ...newInstitution,
+                            description: e.target.value,
+                          })
+                        }
                       />
                     </div>
                   </div>
                   <div className="flex justify-end space-x-2 mt-6">
-                    <Button variant="outline" onClick={() => setIsAddOpen(false)} disabled={actionLoading}>
+                    <Button
+                      variant="outline"
+                      onClick={() => setIsAddOpen(false)}
+                      disabled={actionLoading}
+                    >
                       Cancel
                     </Button>
-                    <Button onClick={handleAddInstitution} disabled={actionLoading}>
-                      {actionLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                    <Button
+                      onClick={handleAddInstitution}
+                      disabled={actionLoading}
+                    >
+                      {actionLoading && (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      )}
                       Add Institution
                     </Button>
                   </div>
@@ -442,11 +662,15 @@ export default function InstitutionsPage() {
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Institutions</CardTitle>
+                <CardTitle className="text-sm font-medium">
+                  Total Institutions
+                </CardTitle>
                 <Building className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{institutionStats.totalInstitutions}</div>
+                <div className="text-2xl font-bold">
+                  {institutionStats.totalInstitutions}
+                </div>
               </CardContent>
             </Card>
             <Card>
@@ -455,21 +679,29 @@ export default function InstitutionsPage() {
                 <CheckCircle className="h-4 w-4 text-green-600" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-green-600">{institutionStats.activeInstitutions}</div>
+                <div className="text-2xl font-bold text-green-600">
+                  {institutionStats.activeInstitutions}
+                </div>
               </CardContent>
             </Card>
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Universities</CardTitle>
+                <CardTitle className="text-sm font-medium">
+                  Universities
+                </CardTitle>
                 <Building className="h-4 w-4 text-purple-600" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-purple-600">{institutionStats.universities}</div>
+                <div className="text-2xl font-bold text-purple-600">
+                  {institutionStats.universities}
+                </div>
               </CardContent>
             </Card>
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Students</CardTitle>
+                <CardTitle className="text-sm font-medium">
+                  Total Students
+                </CardTitle>
                 <Users className="h-4 w-4 text-blue-600" />
               </CardHeader>
               <CardContent>
@@ -480,11 +712,15 @@ export default function InstitutionsPage() {
             </Card>
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Pending Approval</CardTitle>
+                <CardTitle className="text-sm font-medium">
+                  Pending Approval
+                </CardTitle>
                 <AlertTriangle className="h-4 w-4 text-yellow-600" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-yellow-600">{institutionStats.pendingApprovals}</div>
+                <div className="text-2xl font-bold text-yellow-600">
+                  {institutionStats.pendingApprovals}
+                </div>
               </CardContent>
             </Card>
           </div>
@@ -542,7 +778,9 @@ export default function InstitutionsPage() {
           <Card>
             <CardHeader>
               <CardTitle>All Institutions</CardTitle>
-              <CardDescription>Manage educational institutions and their access</CardDescription>
+              <CardDescription>
+                Manage educational institutions and their access
+              </CardDescription>
             </CardHeader>
             <CardContent>
               {loading && (
@@ -555,7 +793,10 @@ export default function InstitutionsPage() {
               {!loading && (
                 <div className="space-y-4">
                   {filteredInstitutions.map((institution) => (
-                    <div key={institution.id} className="border rounded-lg p-4 hover:bg-muted/50 transition-colors">
+                    <div
+                      key={institution.id}
+                      className="border rounded-lg p-4 hover:bg-muted/50 transition-colors"
+                    >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center space-x-4 flex-1">
                           <Avatar className="h-12 w-12">
@@ -569,32 +810,49 @@ export default function InstitutionsPage() {
                           </Avatar>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center space-x-2 mb-1">
-                              <h3 className="font-medium text-foreground">{institution.name}</h3>
+                              <h3 className="font-medium text-foreground">
+                                {institution.name}
+                              </h3>
                               {getTypeBadge(institution.type)}
                               {getStatusBadge(institution.status)}
                             </div>
-                            <p className="text-sm text-muted-foreground">{institution.contactEmail}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {institution.contactEmail}
+                            </p>
                             <div className="flex items-center space-x-4 mt-2 text-xs text-muted-foreground">
                               <span>
-                                Location: {institution.city}, {institution.state}
+                                Location: {institution.city},{" "}
+                                {institution.state}
                               </span>
                               <span>Code: {institution.code}</span>
-                              {institution.establishedYear && <span>Est: {institution.establishedYear}</span>}
+                              {institution.establishedYear && (
+                                <span>Est: {institution.establishedYear}</span>
+                              )}
                             </div>
                             <div className="flex items-center space-x-4 mt-1 text-xs text-muted-foreground">
-                              <span>Joined: {formatDate(institution.createdAt)}</span>
-                              <span>Updated: {formatDate(institution.updatedAt)}</span>
+                              <span>
+                                Joined: {formatDate(institution.createdAt)}
+                              </span>
+                              <span>
+                                Updated: {formatDate(institution.updatedAt)}
+                              </span>
                             </div>
                           </div>
                         </div>
                         <div className="flex items-center space-x-2 ml-4">
-                          <Button size="sm" variant="outline" onClick={() => handleViewDetails(institution)}>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleViewDetails(institution)}
+                          >
                             View Details
                           </Button>
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => handleInstitutionAction(institution, "edit")}
+                            onClick={() =>
+                              handleInstitutionAction(institution, "edit")
+                            }
                           >
                             <Edit className="h-4 w-4 mr-1" />
                             Edit
@@ -603,7 +861,9 @@ export default function InstitutionsPage() {
                             <Button
                               size="sm"
                               className="bg-green-600 hover:bg-green-700"
-                              onClick={() => handleInstitutionAction(institution, "approve")}
+                              onClick={() =>
+                                handleInstitutionAction(institution, "approve")
+                              }
                             >
                               <CheckCircle className="h-4 w-4 mr-1" />
                               Approve
@@ -614,7 +874,9 @@ export default function InstitutionsPage() {
                               size="sm"
                               variant="outline"
                               className="text-red-600 hover:text-red-700 bg-transparent"
-                              onClick={() => handleInstitutionAction(institution, "suspend")}
+                              onClick={() =>
+                                handleInstitutionAction(institution, "suspend")
+                              }
                             >
                               Suspend
                             </Button>
@@ -623,7 +885,9 @@ export default function InstitutionsPage() {
                               size="sm"
                               variant="outline"
                               className="text-green-600 hover:text-green-700 bg-transparent"
-                              onClick={() => handleInstitutionAction(institution, "activate")}
+                              onClick={() =>
+                                handleInstitutionAction(institution, "activate")
+                              }
                             >
                               Activate
                             </Button>
@@ -632,7 +896,9 @@ export default function InstitutionsPage() {
                             size="sm"
                             variant="outline"
                             className="text-red-600 hover:text-red-700 bg-transparent"
-                            onClick={() => handleInstitutionAction(institution, "delete")}
+                            onClick={() =>
+                              handleInstitutionAction(institution, "delete")
+                            }
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -646,9 +912,13 @@ export default function InstitutionsPage() {
               {!loading && filteredInstitutions.length === 0 && (
                 <div className="text-center py-12">
                   <Building className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-foreground mb-2">No institutions found</h3>
+                  <h3 className="text-lg font-medium text-foreground mb-2">
+                    No institutions found
+                  </h3>
                   <p className="text-muted-foreground">
-                    {searchQuery || typeFilter !== "all" || statusFilter !== "all"
+                    {searchQuery ||
+                    typeFilter !== "all" ||
+                    statusFilter !== "all"
                       ? "Try adjusting your search or filter criteria"
                       : "No institutions registered yet"}
                   </p>
@@ -659,22 +929,22 @@ export default function InstitutionsPage() {
               {totalPages > 1 && (
                 <div className="flex items-center justify-between mt-6">
                   <p className="text-sm text-muted-foreground">
-                    Page {currentPageState} of {totalPages}
+                    Page {currentPage} of {totalPages}
                   </p>
                   <div className="flex items-center space-x-2">
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => handleFetchInstitutions(currentPageState - 1)}
-                      disabled={currentPageState <= 1 || loading}
+                      onClick={() => fetchInstitutions(currentPage - 1)}
+                      disabled={currentPage <= 1 || loading}
                     >
                       Previous
                     </Button>
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => handleFetchInstitutions(currentPageState + 1)}
-                      disabled={currentPageState >= totalPages || loading}
+                      onClick={() => fetchInstitutions(currentPage + 1)}
+                      disabled={currentPage >= totalPages || loading}
                     >
                       Next
                     </Button>
@@ -689,7 +959,9 @@ export default function InstitutionsPage() {
             <DialogContent className="max-w-3xl">
               <DialogHeader>
                 <DialogTitle>Institution Details</DialogTitle>
-                <DialogDescription>Complete information about the institution</DialogDescription>
+                <DialogDescription>
+                  Complete information about the institution
+                </DialogDescription>
               </DialogHeader>
               {selectedInstitution && (
                 <Tabs defaultValue="profile" className="space-y-4">
@@ -703,11 +975,15 @@ export default function InstitutionsPage() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
                         <Label>Institution Name</Label>
-                        <p className="font-medium">{selectedInstitution.name}</p>
+                        <p className="font-medium">
+                          {selectedInstitution.name}
+                        </p>
                       </div>
                       <div>
                         <Label>Institution Code</Label>
-                        <p className="font-medium">{selectedInstitution.code}</p>
+                        <p className="font-medium">
+                          {selectedInstitution.code}
+                        </p>
                       </div>
                       <div>
                         <Label>Institution Type</Label>
@@ -719,16 +995,23 @@ export default function InstitutionsPage() {
                       </div>
                       <div>
                         <Label>Country</Label>
-                        <p className="font-medium">{selectedInstitution.country}</p>
+                        <p className="font-medium">
+                          {selectedInstitution.country}
+                        </p>
                       </div>
                       <div>
                         <Label>Established Year</Label>
-                        <p className="font-medium">{selectedInstitution.establishedYear || "Not specified"}</p>
+                        <p className="font-medium">
+                          {selectedInstitution.establishedYear ||
+                            "Not specified"}
+                        </p>
                       </div>
                       {selectedInstitution.description && (
                         <div className="md:col-span-2">
                           <Label>Description</Label>
-                          <p className="font-medium">{selectedInstitution.description}</p>
+                          <p className="font-medium">
+                            {selectedInstitution.description}
+                          </p>
                         </div>
                       )}
                     </div>
@@ -738,27 +1021,39 @@ export default function InstitutionsPage() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
                         <Label>Email Address</Label>
-                        <p className="font-medium">{selectedInstitution.contactEmail}</p>
+                        <p className="font-medium">
+                          {selectedInstitution.contactEmail}
+                        </p>
                       </div>
                       <div>
                         <Label>Phone Number</Label>
-                        <p className="font-medium">{selectedInstitution.contactPhone || "Not provided"}</p>
+                        <p className="font-medium">
+                          {selectedInstitution.contactPhone || "Not provided"}
+                        </p>
                       </div>
                       <div>
                         <Label>Website</Label>
-                        <p className="font-medium text-blue-600">{selectedInstitution.website || "Not provided"}</p>
+                        <p className="font-medium text-blue-600">
+                          {selectedInstitution.website || "Not provided"}
+                        </p>
                       </div>
                       <div>
                         <Label>Address</Label>
-                        <p className="font-medium">{selectedInstitution.address}</p>
+                        <p className="font-medium">
+                          {selectedInstitution.address}
+                        </p>
                       </div>
                       <div>
                         <Label>City</Label>
-                        <p className="font-medium">{selectedInstitution.city}</p>
+                        <p className="font-medium">
+                          {selectedInstitution.city}
+                        </p>
                       </div>
                       <div>
                         <Label>State</Label>
-                        <p className="font-medium">{selectedInstitution.state}</p>
+                        <p className="font-medium">
+                          {selectedInstitution.state}
+                        </p>
                       </div>
                     </div>
                   </TabsContent>
@@ -767,11 +1062,15 @@ export default function InstitutionsPage() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
                         <Label>Registration Date</Label>
-                        <p className="font-medium">{formatDate(selectedInstitution.createdAt)}</p>
+                        <p className="font-medium">
+                          {formatDate(selectedInstitution.createdAt)}
+                        </p>
                       </div>
                       <div>
                         <Label>Last Updated</Label>
-                        <p className="font-medium">{formatDate(selectedInstitution.updatedAt)}</p>
+                        <p className="font-medium">
+                          {formatDate(selectedInstitution.updatedAt)}
+                        </p>
                       </div>
                       <div>
                         <Label>Current Status</Label>
@@ -796,26 +1095,34 @@ export default function InstitutionsPage() {
                   {actionType === "edit" && "Edit Institution"}
                 </DialogTitle>
                 <DialogDescription>
-                  {actionType === "approve" && "This will approve the institution and grant them access to the system."}
-                  {actionType === "suspend" && "This will suspend the institution's account and prevent access."}
-                  {actionType === "activate" && "This will reactivate the institution's account."}
+                  {actionType === "approve" &&
+                    "This will approve the institution and grant them access to the system."}
+                  {actionType === "suspend" &&
+                    "This will suspend the institution's account and prevent access."}
+                  {actionType === "activate" &&
+                    "This will reactivate the institution's account."}
                   {actionType === "delete" &&
                     "This action cannot be undone. All institution data will be permanently deleted."}
-                  {actionType === "edit" && "Modify institution details and settings."}
+                  {actionType === "edit" &&
+                    "Modify institution details and settings."}
                 </DialogDescription>
               </DialogHeader>
               {selectedInstitution && (
                 <div className="space-y-4">
                   <div className="p-4 bg-muted rounded-lg">
                     <h4 className="font-medium">{selectedInstitution.name}</h4>
-                    <p className="text-sm text-muted-foreground">{selectedInstitution.contactEmail}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {selectedInstitution.contactEmail}
+                    </p>
                     <div className="flex items-center space-x-2 mt-2">
                       {getTypeBadge(selectedInstitution.type)}
                       {getStatusBadge(selectedInstitution.status)}
                     </div>
                   </div>
 
-                  {(actionType === "approve" || actionType === "suspend" || actionType === "activate") && (
+                  {(actionType === "approve" ||
+                    actionType === "suspend" ||
+                    actionType === "activate") && (
                     <div className="space-y-2">
                       <Label htmlFor="reason">Reason (optional)</Label>
                       <Textarea
@@ -828,21 +1135,28 @@ export default function InstitutionsPage() {
                   )}
 
                   <div className="flex justify-end space-x-2">
-                    <Button variant="outline" onClick={() => setIsActionOpen(false)} disabled={actionLoading}>
+                    <Button
+                      variant="outline"
+                      onClick={() => setIsActionOpen(false)}
+                      disabled={actionLoading}
+                    >
                       Cancel
                     </Button>
                     <Button
                       className={
                         actionType === "delete" || actionType === "suspend"
                           ? "bg-red-600 hover:bg-red-700"
-                          : actionType === "approve" || actionType === "activate"
-                            ? "bg-green-600 hover:bg-green-700"
-                            : ""
+                          : actionType === "approve" ||
+                            actionType === "activate"
+                          ? "bg-green-600 hover:bg-green-700"
+                          : ""
                       }
                       onClick={executeInstitutionAction}
                       disabled={actionLoading}
                     >
-                      {actionLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                      {actionLoading && (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      )}
                       {actionType === "approve" && "Approve Institution"}
                       {actionType === "suspend" && "Suspend Institution"}
                       {actionType === "activate" && "Activate Institution"}
@@ -857,5 +1171,5 @@ export default function InstitutionsPage() {
         </div>
       </DashboardLayout>
     </ProtectedRoute>
-  )
+  );
 }
