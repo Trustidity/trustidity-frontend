@@ -4,6 +4,7 @@ import { DM_Sans, DM_Mono } from "next/font/google";
 import "./globals.css";
 import { ClientAuthProvider } from "@/components/auth/auth-provider";
 import { Toaster } from "@/components/ui/toaster";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 
 const dmSans = DM_Sans({
   variable: "--font-dm-sans",
@@ -36,6 +37,7 @@ export default function RootLayout({
         <ClientAuthProvider>
           {children}
           <Toaster />
+          <SpeedInsights />
         </ClientAuthProvider>
       </body>
     </html>
