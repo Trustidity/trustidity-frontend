@@ -138,13 +138,7 @@ export function Header() {
                     >
                       Pricing
                     </Link>
-                    <Link
-                      href="/about"
-                      onClick={handleLinkClick}
-                      className="flex items-center w-full px-3 py-3 text-base font-medium text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-colors"
-                    >
-                      About
-                    </Link>
+                    
                   </div>
                 </nav>
 
