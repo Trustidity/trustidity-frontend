@@ -10,7 +10,7 @@ export function HeroSection() {
           <div className="mb-8 flex justify-center">
             <div className="flex items-center space-x-2 rounded-full bg-muted px-4 py-2 text-sm">
               <CheckCircle className="h-4 w-4 text-green-600" />
-              <span className="text-muted-foreground">Trusted by 500+ institutions worldwide</span>
+              <span className="text-muted-foreground">Building trust, one credential at a time.</span>
             </div>
           </div>
 
